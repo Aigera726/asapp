@@ -431,6 +431,30 @@ export async function seedDemoData(): Promise<void> {
   });
 }
 
+/**
+ * Записи, заведённые пользователем поверх демо-данных.
+ *
+ * Отчёт, оформленный в демо-режиме, получает настоящий UUID, но ссылается на
+ * демо-задание. На сервере такого задания нет, и push упирается в RLS:
+ * «new row violates row-level security policy for table reports». Такие
+ * записи бессмысленны вне демо-режима, поэтому чистятся вместе с ним.
+ */
+const DERIVED_TABLES = [
+  'reports',
+  'material_movements',
+  'asset_movements',
+  'inspections',
+  'prescriptions',
+  'deviations',
+];
+
+/** Ссылается ли запись на демо-данные хотя бы одним внешним ключом. */
+export function referencesDemoData(row: Record<string, any>): boolean {
+  return Object.entries(row).some(
+    ([key, value]) => key.endsWith('_id') && isDemoId(value as string)
+  );
+}
+
 /** Удаляет только демо-записи, рабочие данные не трогает. */
 export async function clearDemoData(): Promise<void> {
   await database.write(async () => {
@@ -446,7 +470,36 @@ export async function clearDemoData(): Promise<void> {
       if (demo.length === 0) continue;
       await database.batch(...demo.map((r) => r.prepareDestroyPermanently()));
     }
+
+    for (const table of DERIVED_TABLES) {
+      let records: any[];
+      try {
+        records = await database.collections.get(table).query().fetch();
+      } catch (e) {
+        continue;
+      }
+      const orphans = records.filter((r) => referencesDemoData(r._raw));
+      if (orphans.length === 0) continue;
+      await database.batch(...orphans.map((r) => r.prepareDestroyPermanently()));
+    }
   });
+}
+
+/**
+ * Убирает демо-данные при входе под настоящей учётной записью.
+ *
+ * Иначе демо-объекты соседствуют с боевыми на одном экране и неотличимы от
+ * них: пользователь видит «Блок А — надземная часть (демо)» рядом с реальным
+ * объектом и считает, что синхронизация притащила мусор с сервера.
+ */
+export async function purgeDemoDataIfPresent(): Promise<void> {
+  try {
+    if (!(await hasDemoData())) return;
+    console.info('[Demo] Вход под рабочей учётной записью — убираем демо-данные');
+    await clearDemoData();
+  } catch (err) {
+    console.warn('[Demo] Не удалось убрать демо-данные', err);
+  }
 }
 
 /** Есть ли сейчас демо-данные — чтобы показать это в интерфейсе. */

@@ -13,7 +13,9 @@ import NetInfo from '@react-native-community/netinfo';
 import { withObservables } from '@nozbe/watermelondb/react';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@/database';
+import { useNavigation } from '@react-navigation/native';
 import { syncDatabase, SYNCED_TABLES } from '@/database/sync';
+import { ScreenHeader } from '@/components/ui';
 import Report from '@/database/models/Report';
 import PurchaseRequest from '@/database/models/PurchaseRequest';
 import { T } from '@/theme';
@@ -39,6 +41,7 @@ interface Props {
 }
 
 function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props) {
+  const navigation = useNavigation<any>();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
 
@@ -158,14 +161,15 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
 
   return (
     <View style={styles.container}>
+      {/* Экран открывается из «Ещё» и раньше не имел выхода: системной
+          кнопки на iOS нет, а жест назад в стеке без заголовка не работал —
+          пользователь оставался запертым на странице синхронизации. */}
+      <ScreenHeader
+        title="Синхронизация"
+        subtitle={lastSyncTime ? `Последняя: ${lastSyncTime}` : undefined}
+        onBack={() => navigation.goBack()}
+      />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Синхронизация</Text>
-          {lastSyncTime && (
-            <Text style={styles.lastSync}>Последняя: {lastSyncTime}</Text>
-          )}
-        </View>
 
         {/* Статистика */}
         <View style={styles.statsRow}>
@@ -249,7 +253,8 @@ const styles = StyleSheet.create({
     backgroundColor: T.colors.canvas,
   },
   scrollContent: {
-    paddingTop: 56,
+    // Верхний отступ теперь даёт ScreenHeader — прежние 56px уводили
+    // содержимое вниз и оставляли под шапкой пустую полосу.
     paddingHorizontal: 20,
     paddingBottom: 40,
   },

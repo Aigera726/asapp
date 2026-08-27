@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
+import { purgeDemoDataIfPresent } from '@/lib/demoData';
 
 /**
  * Роли из enum public.user_role.
@@ -264,6 +265,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user: session?.user ?? null,
     });
     if (session?.user) {
+      // Демо-объекты соседствовали бы с боевыми на одном экране и были бы
+      // от них неотличимы — пользователь принимал их за мусор с сервера.
+      purgeDemoDataIfPresent();
       get().fetchProfile();
     }
   },

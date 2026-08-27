@@ -3,7 +3,7 @@ import { Q } from '@nozbe/watermelondb';
 import { File } from 'expo-file-system';
 import { database } from './index';
 import { supabase } from '@/lib/supabase';
-import { isDemoId } from '@/lib/demoData';
+import { isDemoId, referencesDemoData } from '@/lib/demoData';
 
 /**
  * Синхронизация WatermelonDB ↔ Supabase УСП.
@@ -332,8 +332,15 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
 
         // Демо-данные живут только на устройстве: их id начинаются с
         // DEMO_ID_PREFIX. Иначе тестовые записи уехали бы в рабочую базу.
-        const created = (raw.created ?? []).filter((r: any) => !isDemoId(r.id));
-        const updated = (raw.updated ?? []).filter((r: any) => !isDemoId(r.id));
+        //
+        // Проверяем и внешние ключи: отчёт, оформленный в демо-режиме,
+        // получает настоящий UUID, но ссылается на демо-задание. На сервере
+        // такого задания нет, и push упирался в RLS — «new row violates
+        // row-level security policy for table reports» — блокируя отправку
+        // всех остальных записей.
+        const sendable = (r: any) => !isDemoId(r.id) && !referencesDemoData(r);
+        const created = (raw.created ?? []).filter(sendable);
+        const updated = (raw.updated ?? []).filter(sendable);
         const deleted = (raw.deleted ?? []).filter((id: string) => !isDemoId(id));
 
         if (deleted.length > 0) {
