@@ -31,7 +31,10 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+# .env содержит ключи Supabase — коммитить нельзя
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo

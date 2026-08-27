@@ -1,0 +1,475 @@
+| Таблица                      | #  | Колонка                 | Тип                         | Может быть NULL | По умолчанию                     | Ключ | Ссылается на            |
+| ---------------------------- | -- | ----------------------- | --------------------------- | --------------- | -------------------------------- | ---- | ----------------------- |
+| Labor_cas                    | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| Labor_cas                    | 2  | code                    | text                        | NO              | null                             | null | null                    |
+| Labor_cas                    | 3  | name_id                 | uuid                        | YES             | null                             | null | localization.id         |
+| Labor_cas                    | 4  | measure_id              | uuid                        | YES             | null                             | null | dic_measures.id         |
+| Labor_cas                    | 5  | price                   | numeric                     | YES             | null                             | null | null                    |
+| Labor_cas                    | 6  | type_id                 | uuid                        | YES             | null                             | null | dic_resource_types.id   |
+| Labor_cas                    | 7  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| Labor_cas                    | 8  | created_at              | timestamp with time zone    | YES             | timezone('utc'::text, now())     | null | null                    |
+| Machine_cas                  | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| Machine_cas                  | 2  | code                    | text                        | NO              | null                             | null | null                    |
+| Machine_cas                  | 3  | name_id                 | uuid                        | YES             | null                             | null | localization.id         |
+| Machine_cas                  | 4  | measure_id              | uuid                        | YES             | null                             | null | dic_measures.id         |
+| Machine_cas                  | 5  | price                   | numeric                     | YES             | null                             | null | null                    |
+| Machine_cas                  | 6  | type_id                 | uuid                        | YES             | null                             | null | dic_resource_types.id   |
+| Machine_cas                  | 7  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| Machine_cas                  | 8  | created_at              | timestamp with time zone    | YES             | timezone('utc'::text, now())     | null | null                    |
+| Materials_cas                | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| Materials_cas                | 2  | code                    | text                        | NO              | null                             | null | null                    |
+| Materials_cas                | 3  | name_id                 | uuid                        | YES             | null                             | null | localization.id         |
+| Materials_cas                | 4  | measure_id              | uuid                        | YES             | null                             | null | dic_measures.id         |
+| Materials_cas                | 5  | price                   | numeric                     | YES             | null                             | null | null                    |
+| Materials_cas                | 6  | type_id                 | uuid                        | YES             | null                             | null | dic_resource_types.id   |
+| Materials_cas                | 7  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| Materials_cas                | 8  | created_at              | timestamp with time zone    | YES             | timezone('utc'::text, now())     | null | null                    |
+| contract_approvals           | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| contract_approvals           | 2  | contract_id             | uuid                        | YES             | null                             | null | contracts.id            |
+| contract_approvals           | 3  | action                  | text                        | NO              | null                             | null | null                    |
+| contract_approvals           | 4  | performed_by            | uuid                        | YES             | null                             | null | null                    |
+| contract_approvals           | 5  | comment                 | text                        | YES             | null                             | null | null                    |
+| contract_approvals           | 6  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| contract_assignments         | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| contract_assignments         | 2  | contract_id             | uuid                        | YES             | null                             | null | contracts.id            |
+| contract_assignments         | 3  | assignment_type         | text                        | NO              | null                             | null | null                    |
+| contract_assignments         | 4  | est_doc_work_id         | uuid                        | YES             | null                             | null | est_doc_works.id        |
+| contract_assignments         | 5  | est_doc_resource_id     | uuid                        | YES             | null                             | null | est_doc_resources.id    |
+| contract_assignments         | 6  | work_name               | text                        | YES             | null                             | null | null                    |
+| contract_assignments         | 7  | work_unit               | text                        | YES             | null                             | null | null                    |
+| contract_assignments         | 8  | resource_name           | text                        | YES             | null                             | null | null                    |
+| contract_assignments         | 9  | resource_unit           | text                        | YES             | null                             | null | null                    |
+| contract_assignments         | 10 | resource_spec           | text                        | YES             | null                             | null | null                    |
+| contract_assignments         | 11 | total_quantity          | numeric                     | NO              | 0                                | null | null                    |
+| contract_assignments         | 12 | assigned_quantity       | numeric                     | NO              | 0                                | null | null                    |
+| contract_assignments         | 13 | unit_price              | numeric                     | YES             | 0                                | null | null                    |
+| contract_assignments         | 14 | total_price             | numeric                     | YES             | null                             | null | null                    |
+| contract_assignments         | 15 | status                  | text                        | YES             | 'PLANNED'::text                  | null | null                    |
+| contract_assignments         | 16 | with_materials          | boolean                     | YES             | false                            | null | null                    |
+| contract_assignments         | 17 | notes                   | text                        | YES             | null                             | null | null                    |
+| contract_assignments         | 18 | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| contractors                  | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| contractors                  | 2  | company_name            | text                        | NO              | null                             | null | null                    |
+| contractors                  | 3  | bin_iin                 | character varying           | YES             | null                             | null | null                    |
+| contractors                  | 4  | contact_person          | text                        | YES             | null                             | null | null                    |
+| contractors                  | 5  | phone                   | text                        | YES             | null                             | null | null                    |
+| contractors                  | 6  | email                   | text                        | YES             | null                             | null | null                    |
+| contractors                  | 7  | address                 | text                        | YES             | null                             | null | null                    |
+| contractors                  | 8  | notes                   | text                        | YES             | null                             | null | null                    |
+| contractors                  | 9  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| contractors                  | 10 | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| contractors                  | 11 | bank_account            | text                        | YES             | null                             | null | null                    |
+| contracts                    | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| contracts                    | 2  | project_id              | uuid                        | YES             | null                             | null | projects.id             |
+| contracts                    | 3  | object_id               | uuid                        | YES             | null                             | null | project_objects.id      |
+| contracts                    | 4  | contractor_id           | uuid                        | YES             | null                             | null | contractors.id          |
+| contracts                    | 5  | contract_number         | text                        | YES             | null                             | null | null                    |
+| contracts                    | 6  | contract_name           | text                        | YES             | null                             | null | null                    |
+| contracts                    | 7  | contract_type           | text                        | NO              | 'SUBCONTRACT'::text              | null | null                    |
+| contracts                    | 8  | contract_mode           | text                        | NO              | 'STANDARD'::text                 | null | null                    |
+| contracts                    | 9  | status                  | text                        | NO              | 'DRAFT'::text                    | null | null                    |
+| contracts                    | 10 | date_start              | date                        | YES             | null                             | null | null                    |
+| contracts                    | 11 | date_end                | date                        | YES             | null                             | null | null                    |
+| contracts                    | 12 | total_amount            | numeric                     | YES             | 0                                | null | null                    |
+| contracts                    | 13 | signed_at               | timestamp with time zone    | YES             | null                             | null | null                    |
+| contracts                    | 14 | created_by              | uuid                        | YES             | null                             | null | null                    |
+| contracts                    | 15 | approved_by             | uuid                        | YES             | null                             | null | null                    |
+| contracts                    | 16 | approved_at             | timestamp with time zone    | YES             | null                             | null | null                    |
+| contracts                    | 17 | notes                   | text                        | YES             | null                             | null | null                    |
+| contracts                    | 18 | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| contracts                    | 19 | updated_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| contracts                    | 20 | currency_id             | uuid                        | YES             | null                             | null | dic_currencies.id       |
+| dic_countries                | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| dic_countries                | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| dic_countries                | 3  | name_id                 | uuid                        | NO              | null                             | null | localization.id         |
+| dic_countries                | 4  | currency_id             | uuid                        | YES             | null                             | null | dic_currencies.id       |
+| dic_countries                | 5  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| dic_countries                | 6  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_countries                | 7  | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_countries                | 8  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| dic_currencies               | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| dic_currencies               | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| dic_currencies               | 3  | name_id                 | uuid                        | NO              | null                             | null | localization.id         |
+| dic_currencies               | 4  | symbol                  | character varying           | YES             | null                             | null | null                    |
+| dic_currencies               | 5  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| dic_currencies               | 6  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_currencies               | 7  | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_currencies               | 8  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| dic_document_types           | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| dic_document_types           | 2  | code                    | text                        | NO              | null                             | null | null                    |
+| dic_estimate_statuses        | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| dic_estimate_statuses        | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| dic_estimate_statuses        | 3  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| dic_measures                 | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| dic_measures                 | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| dic_measures                 | 3  | name_id                 | uuid                        | NO              | null                             | null | localization.id         |
+| dic_measures                 | 4  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| dic_measures                 | 5  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_measures                 | 6  | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_measures                 | 7  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| dic_project_customers        | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| dic_project_customers        | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| dic_project_customers        | 3  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| dic_project_object_types     | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| dic_project_object_types     | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| dic_project_object_types     | 3  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| dic_project_statuses         | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| dic_project_statuses         | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| dic_project_statuses         | 3  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| dic_regions                  | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| dic_regions                  | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| dic_regions                  | 3  | name_id                 | uuid                        | NO              | null                             | null | localization.id         |
+| dic_regions                  | 4  | country_id              | uuid                        | NO              | null                             | null | dic_countries.id        |
+| dic_regions                  | 5  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| dic_regions                  | 6  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_regions                  | 7  | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_regions                  | 8  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| dic_resource_types           | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| dic_resource_types           | 2  | code                    | character varying           | YES             | null                             | null | null                    |
+| dic_resource_types           | 3  | name_id                 | uuid                        | NO              | null                             | null | localization.id         |
+| dic_resource_types           | 4  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| dic_resource_types           | 5  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_resource_types           | 6  | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| dic_resource_types           | 7  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| est_coefficients             | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| est_coefficients             | 2  | doc_id                  | uuid                        | YES             | null                             | null | est_documents.id        |
+| est_coefficients             | 3  | name                    | character varying           | NO              | null                             | null | null                    |
+| est_coefficients             | 4  | type                    | character varying           | NO              | null                             | null | null                    |
+| est_coefficients             | 5  | value_percent           | numeric                     | NO              | null                             | null | null                    |
+| est_coefficients             | 6  | target_type             | character varying           | YES             | 'total'::character varying       | null | null                    |
+| est_coefficients             | 7  | target_id               | uuid                        | YES             | null                             | null | null                    |
+| est_doc_resources            | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| est_doc_resources            | 2  | doc_id                  | uuid                        | YES             | null                             | null | est_documents.id        |
+| est_doc_resources            | 3  | work_id                 | uuid                        | YES             | null                             | null | est_doc_works.id        |
+| est_doc_resources            | 4  | resource_id             | uuid                        | YES             | null                             | null | null                    |
+| est_doc_resources            | 5  | norm                    | numeric                     | NO              | null                             | null | null                    |
+| est_doc_resources            | 6  | quantity                | numeric                     | NO              | null                             | null | null                    |
+| est_doc_resources            | 7  | price                   | numeric                     | NO              | null                             | null | null                    |
+| est_doc_resources            | 8  | amount                  | numeric                     | NO              | null                             | null | null                    |
+| est_doc_resources            | 9  | is_excluded             | boolean                     | YES             | false                            | null | null                    |
+| est_doc_resources            | 10 | fact_quantity           | numeric                     | YES             | null                             | null | null                    |
+| est_doc_resources            | 11 | fact_price              | numeric                     | YES             | null                             | null | null                    |
+| est_doc_resources            | 12 | fact_amount             | numeric                     | YES             | null                             | null | null                    |
+| est_doc_resources            | 13 | fact_norm               | numeric                     | YES             | null                             | null | null                    |
+| est_doc_resources            | 14 | source                  | text                        | YES             | null                             | null | null                    |
+| est_doc_schedules            | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| est_doc_schedules            | 2  | doc_id                  | uuid                        | NO              | null                             | null | est_documents.id        |
+| est_doc_schedules            | 3  | work_id                 | uuid                        | NO              | null                             | null | est_doc_works.id        |
+| est_doc_schedules            | 4  | start_date              | date                        | NO              | null                             | null | null                    |
+| est_doc_schedules            | 5  | duration_days           | integer                     | NO              | 1                                | null | null                    |
+| est_doc_schedules            | 6  | assignee_id             | uuid                        | YES             | null                             | null | profiles.id             |
+| est_doc_schedules            | 7  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| est_doc_schedules            | 8  | updated_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| est_doc_works                | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| est_doc_works                | 2  | doc_id                  | uuid                        | YES             | null                             | null | est_documents.id        |
+| est_doc_works                | 3  | wbs_id                  | uuid                        | YES             | null                             | null | est_wbs.id              |
+| est_doc_works                | 4  | work_id                 | uuid                        | YES             | null                             | null | null                    |
+| est_doc_works                | 5  | volume                  | numeric                     | YES             | 0                                | null | null                    |
+| est_doc_works                | 6  | price                   | numeric                     | YES             | 0                                | null | null                    |
+| est_doc_works                | 7  | amount                  | numeric                     | YES             | 0                                | null | null                    |
+| est_doc_works                | 8  | sort_order              | integer                     | YES             | 0                                | null | null                    |
+| est_doc_works                | 9  | is_excluded             | boolean                     | YES             | false                            | null | null                    |
+| est_doc_works                | 10 | fact_volume             | numeric                     | YES             | null                             | null | null                    |
+| est_doc_works                | 11 | fact_amount             | numeric                     | YES             | null                             | null | null                    |
+| est_document_history         | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| est_document_history         | 2  | doc_id                  | uuid                        | NO              | null                             | null | est_documents.id        |
+| est_document_history         | 3  | user_id                 | uuid                        | YES             | null                             | null | profiles.id             |
+| est_document_history         | 4  | event                   | character varying           | NO              | null                             | null | null                    |
+| est_document_history         | 5  | comment                 | text                        | YES             | null                             | null | null                    |
+| est_document_history         | 6  | created_at              | timestamp with time zone    | YES             | timezone('utc'::text, now())     | null | null                    |
+| est_documents                | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| est_documents                | 2  | project_id              | character varying           | NO              | null                             | null | null                    |
+| est_documents                | 3  | organization_id         | uuid                        | NO              | null                             | null | null                    |
+| est_documents                | 4  | status                  | character varying           | YES             | 'draft'::character varying       | null | null                    |
+| est_documents                | 5  | date                    | timestamp with time zone    | YES             | now()                            | null | null                    |
+| est_documents                | 6  | total_amount            | numeric                     | YES             | 0                                | null | null                    |
+| est_documents                | 7  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| est_documents                | 8  | updated_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| est_documents                | 9  | region_id               | uuid                        | YES             | null                             | null | dic_regions.id          |
+| est_documents                | 10 | currency_id             | uuid                        | YES             | null                             | null | dic_currencies.id       |
+| est_documents                | 11 | is_template_added       | boolean                     | YES             | false                            | null | null                    |
+| est_documents                | 12 | project_uuid            | uuid                        | YES             | null                             | null | projects.id             |
+| est_documents                | 13 | object_id               | uuid                        | YES             | null                             | null | project_objects.id      |
+| est_documents                | 14 | zone                    | character varying           | YES             | null                             | null | null                    |
+| est_documents                | 15 | phase                   | character varying           | YES             | null                             | null | null                    |
+| est_documents                | 16 | discipline              | character varying           | YES             | null                             | null | null                    |
+| est_documents                | 17 | created_by              | uuid                        | YES             | null                             | null | null                    |
+| est_documents                | 18 | parent_doc_id           | uuid                        | YES             | null                             | null | est_documents.id        |
+| est_documents                | 19 | plan_version            | integer                     | YES             | null                             | null | null                    |
+| est_documents                | 20 | plan_created_by         | uuid                        | YES             | null                             | null | profiles.id             |
+| est_documents                | 21 | plan_created_at         | timestamp with time zone    | YES             | null                             | null | null                    |
+| est_documents                | 22 | rejection_reason        | text                        | YES             | null                             | null | null                    |
+| est_documents                | 23 | estimate_type           | character varying           | YES             | 'work'::character varying        | null | null                    |
+| est_documents                | 24 | plan_approver_id        | uuid                        | YES             | null                             | null | profiles.id             |
+| est_documents                | 25 | plan_submitted_by       | uuid                        | YES             | null                             | null | profiles.id             |
+| est_documents                | 26 | plan_submitted_at       | timestamp with time zone    | YES             | null                             | null | null                    |
+| est_documents                | 27 | plan_submit_comment     | text                        | YES             | null                             | null | null                    |
+| est_documents                | 28 | plan_decided_by         | uuid                        | YES             | null                             | null | profiles.id             |
+| est_documents                | 29 | plan_decided_at         | timestamp with time zone    | YES             | null                             | null | null                    |
+| est_documents                | 30 | plan_deactivated_by     | uuid                        | YES             | null                             | null | profiles.id             |
+| est_documents                | 31 | plan_deactivated_at     | timestamp with time zone    | YES             | null                             | null | null                    |
+| est_gpm_material_demands     | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| est_gpm_material_demands     | 2  | project_uuid            | uuid                        | YES             | null                             | null | projects.id             |
+| est_gpm_material_demands     | 3  | object_id               | uuid                        | YES             | null                             | null | project_objects.id      |
+| est_gpm_material_demands     | 4  | doc_id                  | uuid                        | YES             | null                             | null | est_documents.id        |
+| est_gpm_material_demands     | 5  | work_id                 | uuid                        | YES             | null                             | null | est_doc_works.id        |
+| est_gpm_material_demands     | 6  | resource_id             | uuid                        | YES             | null                             | null | est_doc_resources.id    |
+| est_gpm_material_demands     | 7  | quantity                | numeric                     | NO              | null                             | null | null                    |
+| est_gpm_material_demands     | 8  | start_date              | date                        | NO              | null                             | null | null                    |
+| est_gpm_material_demands     | 9  | end_date                | date                        | NO              | null                             | null | null                    |
+| est_gpm_material_demands     | 10 | comment                 | text                        | YES             | null                             | null | null                    |
+| est_gpm_material_demands     | 11 | created_by              | uuid                        | YES             | null                             | null | profiles.id             |
+| est_gpm_material_demands     | 12 | created_at              | timestamp with time zone    | NO              | timezone('utc'::text, now())     | null | null                    |
+| est_gpr_assignees            | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| est_gpr_assignees            | 2  | doc_id                  | uuid                        | NO              | null                             | null | est_documents.id        |
+| est_gpr_assignees            | 3  | work_id                 | uuid                        | NO              | null                             | null | null                    |
+| est_gpr_assignees            | 4  | assignee_type           | character varying           | YES             | 'employee'::character varying    | null | null                    |
+| est_gpr_assignees            | 5  | assignee_id             | uuid                        | YES             | null                             | null | profiles.id             |
+| est_gpr_assignees            | 6  | assignee_name           | character varying           | YES             | null                             | null | null                    |
+| est_gpr_assignees            | 7  | created_at              | timestamp with time zone    | YES             | timezone('utc'::text, now())     | null | null                    |
+| est_gpr_assignees            | 8  | updated_at              | timestamp with time zone    | YES             | timezone('utc'::text, now())     | null | null                    |
+| est_wbs                      | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| est_wbs                      | 2  | doc_id                  | uuid                        | YES             | null                             | null | est_documents.id        |
+| est_wbs                      | 3  | parent_id               | uuid                        | YES             | null                             | null | est_wbs.id              |
+| est_wbs                      | 4  | name                    | character varying           | NO              | null                             | null | null                    |
+| est_wbs                      | 5  | type                    | character varying           | YES             | 'section'::character varying     | null | null                    |
+| est_wbs                      | 6  | sort_order              | integer                     | YES             | 0                                | null | null                    |
+| est_wbs                      | 7  | is_excluded             | boolean                     | YES             | false                            | null | null                    |
+| est_work_dependencies        | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| est_work_dependencies        | 2  | doc_id                  | uuid                        | NO              | null                             | null | est_documents.id        |
+| est_work_dependencies        | 3  | predecessor_id          | uuid                        | NO              | null                             | null | est_doc_works.id        |
+| est_work_dependencies        | 4  | successor_id            | uuid                        | NO              | null                             | null | est_doc_works.id        |
+| est_work_dependencies        | 5  | type                    | character varying           | NO              | 'FS'::character varying          | null | null                    |
+| est_work_dependencies        | 6  | lag                     | integer                     | NO              | 0                                | null | null                    |
+| est_work_dependencies        | 7  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| est_work_dependencies        | 8  | updated_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| est_work_volume_distribution | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| est_work_volume_distribution | 2  | doc_id                  | uuid                        | NO              | null                             | null | null                    |
+| est_work_volume_distribution | 3  | work_id                 | uuid                        | NO              | null                             | null | null                    |
+| est_work_volume_distribution | 4  | period_type             | character varying           | NO              | null                             | null | null                    |
+| est_work_volume_distribution | 5  | period_start            | date                        | NO              | null                             | null | null                    |
+| est_work_volume_distribution | 6  | period_end              | date                        | NO              | null                             | null | null                    |
+| est_work_volume_distribution | 7  | volume                  | numeric                     | NO              | null                             | null | null                    |
+| est_work_volume_distribution | 8  | period_label            | character varying           | YES             | null                             | null | null                    |
+| est_work_volume_distribution | 9  | created_at              | timestamp with time zone    | NO              | timezone('utc'::text, now())     | null | null                    |
+| estimate_audit_logs          | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| estimate_audit_logs          | 2  | doc_id                  | uuid                        | YES             | null                             | null | est_documents.id        |
+| estimate_audit_logs          | 3  | wbs_id                  | uuid                        | YES             | null                             | null | est_wbs.id              |
+| estimate_audit_logs          | 4  | user_id                 | uuid                        | YES             | null                             | null | profiles.id             |
+| estimate_audit_logs          | 5  | action                  | character varying           | NO              | null                             | null | null                    |
+| estimate_audit_logs          | 6  | details                 | jsonb                       | YES             | '{}'::jsonb                      | null | null                    |
+| estimate_audit_logs          | 7  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| job_resource_norms           | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| job_resource_norms           | 2  | job_id                  | uuid                        | NO              | null                             | null | jobs.id                 |
+| job_resource_norms           | 3  | resource_id             | uuid                        | NO              | null                             | null | resources.id            |
+| job_resource_norms           | 4  | measure_id              | uuid                        | NO              | null                             | null | dic_measures.id         |
+| job_resource_norms           | 5  | value_string            | text                        | YES             | null                             | null | null                    |
+| job_resource_norms           | 6  | value_number            | numeric                     | YES             | null                             | null | null                    |
+| job_resource_norms           | 7  | value_boolean           | boolean                     | YES             | null                             | null | null                    |
+| job_resource_norms           | 8  | value_datetime          | timestamp without time zone | YES             | null                             | null | null                    |
+| job_resource_norms           | 9  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| job_resource_norms           | 10 | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| job_resource_norms           | 11 | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| job_resource_norms           | 12 | is_active               | boolean                     | YES             | true                             | null | null                    |
+| jobs                         | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| jobs                         | 2  | id_1c                   | uuid                        | YES             | null                             | null | null                    |
+| jobs                         | 3  | code                    | character varying           | NO              | null                             | null | null                    |
+| jobs                         | 4  | name_id                 | uuid                        | NO              | null                             | null | localization.id         |
+| jobs                         | 5  | measure_id              | uuid                        | NO              | null                             | null | dic_measures.id         |
+| jobs                         | 6  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| jobs                         | 7  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| jobs                         | 8  | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| jobs                         | 9  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| jobs_cas                     | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| jobs_cas                     | 2  | code                    | text                        | NO              | null                             | null | null                    |
+| jobs_cas                     | 3  | name_id                 | uuid                        | YES             | null                             | null | localization.id         |
+| jobs_cas                     | 4  | measure_id              | uuid                        | YES             | null                             | null | dic_measures.id         |
+| jobs_cas                     | 5  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| jobs_cas                     | 6  | created_at              | timestamp with time zone    | YES             | timezone('utc'::text, now())     | null | null                    |
+| jobs_cas                     | 7  | id_1c                   | text                        | YES             | null                             | null | null                    |
+| jobs_cas                     | 8  | updated_at              | timestamp with time zone    | YES             | null                             | null | null                    |
+| jobs_cas                     | 9  | deactivated_at          | timestamp with time zone    | YES             | null                             | null | null                    |
+| jobs_norms_cas               | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| jobs_norms_cas               | 2  | job_id                  | uuid                        | YES             | null                             | null | jobs_cas.id             |
+| jobs_norms_cas               | 3  | material_id             | uuid                        | YES             | null                             | null | Materials_cas.id        |
+| jobs_norms_cas               | 4  | machine_id              | uuid                        | YES             | null                             | null | Machine_cas.id          |
+| jobs_norms_cas               | 5  | labor_id                | uuid                        | YES             | null                             | null | Labor_cas.id            |
+| jobs_norms_cas               | 6  | measure_id              | uuid                        | YES             | null                             | null | dic_measures.id         |
+| jobs_norms_cas               | 7  | count                   | numeric                     | YES             | null                             | null | null                    |
+| jobs_norms_cas               | 8  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| jobs_norms_cas               | 9  | created_at              | timestamp with time zone    | YES             | timezone('utc'::text, now())     | null | null                    |
+| localization                 | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| localization                 | 2  | object_name             | character varying           | NO              | null                             | null | null                    |
+| localization                 | 3  | object_id               | uuid                        | NO              | null                             | null | null                    |
+| localization                 | 4  | locale                  | character varying           | NO              | null                             | null | null                    |
+| localization                 | 5  | name                    | text                        | NO              | null                             | null | null                    |
+| localization                 | 6  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| localization                 | 7  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| localization                 | 8  | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| localization                 | 9  | is_active               | boolean                     | YES             | true                             | null | null                    |
+| mdm_cross_reference          | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| mdm_cross_reference          | 2  | golden_id               | uuid                        | NO              | null                             | null | mdm_golden_records.id   |
+| mdm_cross_reference          | 3  | system_code             | text                        | NO              | null                             | null | null                    |
+| mdm_cross_reference          | 4  | local_system_id         | text                        | NO              | null                             | null | null                    |
+| mdm_cross_reference          | 5  | created_at              | timestamp with time zone    | NO              | now()                            | null | null                    |
+| mdm_golden_records           | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| mdm_golden_records           | 2  | entity_type             | text                        | NO              | null                             | null | null                    |
+| mdm_golden_records           | 3  | normalized_name         | text                        | NO              | null                             | null | null                    |
+| mdm_golden_records           | 4  | base_unit               | text                        | YES             | null                             | null | null                    |
+| mdm_golden_records           | 5  | status                  | text                        | NO              | 'active'::text                   | null | null                    |
+| mdm_golden_records           | 6  | created_at              | timestamp with time zone    | NO              | now()                            | null | null                    |
+| mdm_golden_records           | 7  | updated_at              | timestamp with time zone    | NO              | now()                            | null | null                    |
+| mdm_requests                 | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| mdm_requests                 | 2  | source_system           | text                        | NO              | null                             | null | null                    |
+| mdm_requests                 | 3  | local_id                | text                        | YES             | null                             | null | null                    |
+| mdm_requests                 | 4  | entity_type             | text                        | NO              | null                             | null | null                    |
+| mdm_requests                 | 5  | raw_name                | text                        | NO              | null                             | null | null                    |
+| mdm_requests                 | 6  | raw_attributes          | jsonb                       | NO              | '{}'::jsonb                      | null | null                    |
+| mdm_requests                 | 7  | status                  | text                        | NO              | 'new'::text                      | null | null                    |
+| mdm_requests                 | 8  | match_golden_id         | uuid                        | YES             | null                             | null | mdm_golden_records.id   |
+| mdm_requests                 | 9  | match_score             | real                        | YES             | null                             | null | null                    |
+| mdm_requests                 | 10 | candidates              | jsonb                       | YES             | null                             | null | null                    |
+| mdm_requests                 | 11 | resolved_golden_id      | uuid                        | YES             | null                             | null | mdm_golden_records.id   |
+| mdm_requests                 | 12 | created_at              | timestamp with time zone    | NO              | now()                            | null | null                    |
+| mdm_requests                 | 13 | resolved_at             | timestamp with time zone    | YES             | null                             | null | null                    |
+| mdm_requests                 | 14 | resolved_by             | text                        | YES             | null                             | null | null                    |
+| modules                      | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| modules                      | 2  | name                    | text                        | NO              | null                             | null | null                    |
+| modules                      | 3  | url                     | text                        | NO              | null                             | null | null                    |
+| modules                      | 4  | icon                    | text                        | YES             | '🧩'::text                       | null | null                    |
+| modules                      | 5  | organization_id         | uuid                        | YES             | null                             | null | organizations.id        |
+| modules                      | 6  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| object_documents             | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| object_documents             | 2  | name                    | text                        | NO              | null                             | null | null                    |
+| object_documents             | 3  | type_id                 | uuid                        | NO              | null                             | null | dic_document_types.id   |
+| object_documents             | 4  | version                 | text                        | NO              | '1.0'::text                      | null | null                    |
+| object_documents             | 5  | file_path               | text                        | YES             | null                             | null | null                    |
+| object_documents             | 6  | doc_url                 | text                        | YES             | null                             | null | null                    |
+| object_documents             | 7  | notes                   | text                        | YES             | null                             | null | null                    |
+| object_documents             | 8  | object_id               | uuid                        | NO              | null                             | null | project_objects.id      |
+| object_documents             | 9  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| object_documents             | 10 | created_by              | uuid                        | YES             | null                             | null | null                    |
+| object_documents             | 11 | updated_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| object_documents             | 12 | updated_by              | uuid                        | YES             | null                             | null | null                    |
+| organizations                | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| organizations                | 2  | name                    | text                        | NO              | null                             | null | null                    |
+| organizations                | 3  | inn                     | text                        | YES             | null                             | null | null                    |
+| organizations                | 4  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| profile_regions              | 1  | profile_id              | uuid                        | NO              | null                             | PK   | profiles.id             |
+| profile_regions              | 2  | region_id               | uuid                        | NO              | null                             | PK   | dic_regions.id          |
+| profiles                     | 1  | id                      | uuid                        | NO              | null                             | PK   | null                    |
+| profiles                     | 2  | first_name              | text                        | YES             | null                             | null | null                    |
+| profiles                     | 3  | last_name               | text                        | YES             | null                             | null | null                    |
+| profiles                     | 4  | role                    | text                        | YES             | 'employee'::text                 | null | null                    |
+| profiles                     | 5  | organization_id         | uuid                        | YES             | null                             | null | organizations.id        |
+| profiles                     | 6  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| project_approvers            | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| project_approvers            | 2  | project_id              | uuid                        | NO              | null                             | null | projects.id             |
+| project_approvers            | 3  | user_id                 | uuid                        | NO              | null                             | null | profiles.id             |
+| project_approvers            | 4  | date                    | timestamp with time zone    | NO              | timezone('utc'::text, now())     | null | null                    |
+| project_approvers            | 5  | approval_user_id        | uuid                        | NO              | null                             | null | profiles.id             |
+| project_approvers            | 6  | action                  | character varying           | NO              | null                             | null | null                    |
+| project_approvers            | 7  | notification_sent       | boolean                     | NO              | false                            | null | null                    |
+| project_approvers            | 8  | comment                 | text                        | YES             | null                             | null | null                    |
+| project_notifications        | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| project_notifications        | 2  | project_id              | uuid                        | NO              | null                             | null | projects.id             |
+| project_notifications        | 3  | user_id                 | uuid                        | NO              | null                             | null | profiles.id             |
+| project_notifications        | 4  | message_code            | character varying           | NO              | null                             | null | null                    |
+| project_notifications        | 5  | message_text            | text                        | NO              | null                             | null | null                    |
+| project_notifications        | 6  | is_read                 | boolean                     | NO              | false                            | null | null                    |
+| project_notifications        | 7  | created_at              | timestamp with time zone    | NO              | timezone('utc'::text, now())     | null | null                    |
+| project_notifications        | 8  | estimate_doc_id         | uuid                        | YES             | null                             | null | est_documents.id        |
+| project_objects              | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| project_objects              | 2  | project_id              | uuid                        | YES             | null                             | null | projects.id             |
+| project_objects              | 3  | name                    | text                        | NO              | null                             | null | null                    |
+| project_objects              | 4  | description             | text                        | YES             | null                             | null | null                    |
+| project_objects              | 5  | address                 | text                        | YES             | null                             | null | null                    |
+| project_objects              | 6  | latitude                | double precision            | YES             | null                             | null | null                    |
+| project_objects              | 7  | longitude               | double precision            | YES             | null                             | null | null                    |
+| project_objects              | 8  | created_at              | timestamp with time zone    | NO              | timezone('utc'::text, now())     | null | null                    |
+| project_objects              | 9  | responsible_id          | uuid                        | YES             | null                             | null | profiles.id             |
+| project_objects              | 10 | custom_responsible_name | character varying           | YES             | null                             | null | null                    |
+| project_objects              | 11 | documents               | jsonb                       | YES             | '[]'::jsonb                      | null | null                    |
+| project_template             | 1  | project_id              | uuid                        | NO              | null                             | PK   | projects.id             |
+| project_template             | 2  | template_id             | uuid                        | NO              | null                             | PK   | wbs_template_headers.id |
+| project_template             | 3  | created_by              | uuid                        | YES             | null                             | null | profiles.id             |
+| project_template             | 4  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| projects                     | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| projects                     | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| projects                     | 3  | name                    | character varying           | NO              | null                             | null | null                    |
+| projects                     | 4  | object_type             | character varying           | NO              | null                             | null | null                    |
+| projects                     | 5  | customer                | character varying           | NO              | null                             | null | null                    |
+| projects                     | 6  | region_id               | uuid                        | YES             | null                             | null | dic_regions.id          |
+| projects                     | 7  | status                  | character varying           | NO              | 'prospect'::character varying    | null | null                    |
+| projects                     | 8  | estimate_status         | character varying           | NO              | 'not_started'::character varying | null | null                    |
+| projects                     | 9  | manager_id              | uuid                        | YES             | null                             | null | profiles.id             |
+| projects                     | 10 | documents               | ARRAY                       | YES             | '{}'::text[]                     | null | null                    |
+| projects                     | 11 | start_date              | timestamp with time zone    | NO              | null                             | null | null                    |
+| projects                     | 12 | end_date                | timestamp with time zone    | YES             | null                             | null | null                    |
+| projects                     | 13 | is_active               | boolean                     | NO              | true                             | null | null                    |
+| projects                     | 14 | organization_id         | uuid                        | NO              | null                             | null | null                    |
+| projects                     | 15 | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| projects                     | 16 | updated_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| projects                     | 17 | deleted_at              | timestamp with time zone    | YES             | null                             | null | null                    |
+| projects                     | 18 | custom_manager_name     | character varying           | YES             | null                             | null | null                    |
+| projects                     | 19 | latitude                | double precision            | YES             | null                             | null | null                    |
+| projects                     | 20 | longitude               | double precision            | YES             | null                             | null | null                    |
+| projects                     | 21 | address                 | character varying           | YES             | null                             | null | null                    |
+| resource_price_history       | 1  | id                      | uuid                        | NO              | gen_random_uuid()                | PK   | null                    |
+| resource_price_history       | 2  | resource_id             | uuid                        | NO              | null                             | null | null                    |
+| resource_price_history       | 3  | region_id               | uuid                        | YES             | null                             | null | dic_regions.id          |
+| resource_price_history       | 4  | old_price               | numeric                     | YES             | null                             | null | null                    |
+| resource_price_history       | 5  | new_price               | numeric                     | NO              | null                             | null | null                    |
+| resource_price_history       | 6  | changed_by              | uuid                        | YES             | null                             | null | profiles.id             |
+| resource_price_history       | 7  | changed_at              | timestamp with time zone    | YES             | timezone('utc'::text, now())     | null | null                    |
+| resource_prices              | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| resource_prices              | 2  | resource_id             | uuid                        | NO              | null                             | null | resources.id            |
+| resource_prices              | 3  | region_id               | uuid                        | NO              | null                             | null | dic_regions.id          |
+| resource_prices              | 4  | currency_id             | uuid                        | NO              | null                             | null | dic_currencies.id       |
+| resource_prices              | 5  | price                   | numeric                     | NO              | null                             | null | null                    |
+| resource_prices              | 6  | valid_from              | timestamp without time zone | NO              | now()                            | null | null                    |
+| resource_prices              | 7  | valid_to                | timestamp without time zone | YES             | null                             | null | null                    |
+| resource_prices              | 8  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| resource_prices              | 9  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| resource_prices              | 10 | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| resource_prices              | 11 | is_active               | boolean                     | YES             | true                             | null | null                    |
+| resources                    | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| resources                    | 2  | id_1c                   | uuid                        | YES             | null                             | null | null                    |
+| resources                    | 3  | code                    | character varying           | NO              | null                             | null | null                    |
+| resources                    | 4  | name_id                 | uuid                        | NO              | null                             | null | localization.id         |
+| resources                    | 5  | type_id                 | uuid                        | NO              | null                             | null | dic_resource_types.id   |
+| resources                    | 6  | measure_id              | uuid                        | YES             | null                             | null | dic_measures.id         |
+| resources                    | 7  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| resources                    | 8  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| resources                    | 9  | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| resources                    | 10 | is_active               | boolean                     | YES             | true                             | null | null                    |
+| resources_parameters         | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| resources_parameters         | 2  | resource_id             | uuid                        | NO              | null                             | null | resources.id            |
+| resources_parameters         | 3  | measure_id              | uuid                        | NO              | null                             | null | dic_measures.id         |
+| resources_parameters         | 4  | value_string            | text                        | YES             | null                             | null | null                    |
+| resources_parameters         | 5  | value_number            | numeric                     | YES             | null                             | null | null                    |
+| resources_parameters         | 6  | value_boolean           | boolean                     | YES             | null                             | null | null                    |
+| resources_parameters         | 7  | value_datetime          | timestamp without time zone | YES             | null                             | null | null                    |
+| resources_parameters         | 8  | created_at              | timestamp without time zone | NO              | now()                            | null | null                    |
+| resources_parameters         | 9  | updated_at              | timestamp without time zone | YES             | null                             | null | null                    |
+| resources_parameters         | 10 | deactivated_at          | timestamp without time zone | YES             | null                             | null | null                    |
+| wbs_template_headers         | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| wbs_template_headers         | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| wbs_template_headers         | 3  | name_ru                 | text                        | NO              | null                             | null | null                    |
+| wbs_template_headers         | 4  | name_en                 | text                        | YES             | null                             | null | null                    |
+| wbs_template_headers         | 5  | name_ka                 | text                        | YES             | null                             | null | null                    |
+| wbs_template_headers         | 6  | name_az                 | text                        | YES             | null                             | null | null                    |
+| wbs_template_headers         | 7  | name_tr                 | text                        | YES             | null                             | null | null                    |
+| wbs_template_headers         | 8  | created_at              | timestamp with time zone    | YES             | now()                            | null | null                    |
+| wbs_templates                | 1  | id                      | uuid                        | NO              | uuid_generate_v4()               | PK   | null                    |
+| wbs_templates                | 2  | code                    | character varying           | NO              | null                             | null | null                    |
+| wbs_templates                | 3  | name_ru                 | text                        | NO              | null                             | null | null                    |
+| wbs_templates                | 4  | name_en                 | text                        | YES             | null                             | null | null                    |
+| wbs_templates                | 5  | name_ka                 | text                        | YES             | null                             | null | null                    |
+| wbs_templates                | 6  | name_az                 | text                        | YES             | null                             | null | null                    |
+| wbs_templates                | 7  | name_tr                 | text                        | YES             | null                             | null | null                    |
+| wbs_templates                | 8  | sort_order              | integer                     | NO              | null                             | null | null                    |
+| wbs_templates                | 9  | template_id             | uuid                        | YES             | null                             | null | wbs_template_headers.id |
+| wbs_templates                | 11 | type                    | character varying           | YES             | null                             | null | null                    |
+| wbs_templates                | 12 | wbs_id                  | character varying           | YES             | null                             | null | null                    |
+| wbs_templates                | 13 | parent_id               | uuid                        | YES             | null                             | null | wbs_templates.id        |
