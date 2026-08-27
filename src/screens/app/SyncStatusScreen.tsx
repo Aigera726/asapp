@@ -13,7 +13,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { withObservables } from '@nozbe/watermelondb/react';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@/database';
-import { syncDatabase } from '@/database/sync';
+import { syncDatabase, SYNCED_TABLES } from '@/database/sync';
 import Report from '@/database/models/Report';
 import PurchaseRequest from '@/database/models/PurchaseRequest';
 import { T } from '@/theme';
@@ -97,28 +97,10 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
             try {
               // Reset database to empty state
               await database.write(async () => {
-                const tables = [
-                  'construction_objects',
-                  'contractors',
-                  'projects',
-                  'estimate_resources',
-                  'estimate_works',
-                  'wbs_items',
-                  'contracts',
-                  'work_assignments',
-                  'reports',
-                  'documents',
-                  'purchase_requests',
-                  'purchase_request_items',
-                  'purchase_orders',
-                  'purchase_order_items',
-                  'warehouse_receipts',
-                  'warehouse_receipt_items',
-                  'bpm_instances',
-                  'bpm_tasks',
-                  'document_signatures',
-                ];
-                for (const table of tables) {
+                // Список берём из слоя синхронизации, а не дублируем здесь:
+                // раньше он расходился с реальным набором таблиц, и часть
+                // данных переживала «полный сброс».
+                for (const table of SYNCED_TABLES) {
                   const collection = (database as any).get(table);
                   const records = await collection.query().fetch();
                   for (const record of records) {

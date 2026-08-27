@@ -6,33 +6,194 @@ import { supabase } from '@/lib/supabase';
 import { isDemoId } from '@/lib/demoData';
 
 /**
- * Главная функция синхронизации WatermelonDB <-> Supabase
+ * Синхронизация WatermelonDB ↔ Supabase УСП.
  *
- * АРХИТЕКТУРА:
- * 1. pullChanges: Читаем изменения из Supabase (через REST API) начиная с lastPulledAt
- * 2. pushChanges: Отправляем локальные изменения (created/updated/deleted) в Supabase
- * 3. Вызывается только при наличии сети (проверяется вызывающей стороной)
+ * АРХИТЕКТУРА ПОСЛЕ ПЕРЕХОДА НА УСП
+ *
+ * Данные делятся надвое, и это деление проходит через весь файл:
+ *
+ *   1. Справочные — сметы, договоры, работы. Живут в схеме `erp`, ими владеет
+ *      УСП. Мобилка их только ЧИТАЕТ, и только через представления схемы
+ *      `mobile` (v_objects, v_assignments, v_assignment_resources): на самих
+ *      таблицах erp включена RLS команды УСП, прямой select возвращает пусто.
+ *      Представления сами сужают выдачу до договоров контрагента вошедшего
+ *      пользователя, поэтому фильтровать на клиенте не нужно.
+ *
+ *   2. Собственные — отчёты, склад, техника, технадзор, закупки. Схема
+ *      `mobile`, читаются и пишутся один в один.
+ *
+ * Одно представление наполняет несколько локальных таблиц: v_assignments
+ * несёт в себе и работу, и договор, и контрагента, и строку сметы. Разбор
+ * идёт в fanOut ниже — так экраны продолжают работать с привычными
+ * таблицами, не зная, что источник стал витриной.
  */
 
-type PullTable = {
-  /** Имя таблицы: одинаковое в Supabase и в схеме WatermelonDB. */
-  table: string;
+const MOBILE_SCHEMA = 'mobile';
+
+/** Секунда «сейчас» для строк, у которых на сервере нет отметки времени. */
+const now = () => Date.now();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. ЧТЕНИЕ СПРАВОЧНЫХ ДАННЫХ ИЗ ВИТРИН
+// ═══════════════════════════════════════════════════════════════════════════
+
+type FanOut = {
+  /** Представление в схеме mobile. */
+  view: string;
+  /** Локальные таблицы, которые оно наполняет. */
+  targets: string[];
   /**
-   * true  — тянем только изменённое с прошлой синхронизации (updated_at > since);
-   * false — таблица тянется целиком (справочники и таблицы без надёжного
-   *         updated_at: инкремент по ним терял бы записи).
+   * Разбирает строку витрины на записи локальных таблиц.
+   * Возвращает объект «таблица → массив строк»; дубли снимаются по id.
    */
-  incremental: boolean;
+  split: (row: any) => Record<string, any[]>;
+};
+
+const FAN_OUTS: FanOut[] = [
+  {
+    // Объект стройки и проект, которому он принадлежит. Терминология
+    // инвертирована относительно УСП: там project → project_objects, в
+    // мобилке объект (ЖК) → проекты (корпуса). Сущности те же.
+    view: 'v_objects',
+    targets: ['construction_objects', 'projects'],
+    split: (r) => ({
+      construction_objects: r.project_id
+        ? [{ id: r.project_id, name: r.project_name ?? 'Без названия', ext_id: r.project_code ?? null, updated_at: now() }]
+        : [],
+      projects: [
+        {
+          id: r.id,
+          object_id: r.project_id ?? null,
+          name: r.name ?? 'Без названия',
+          ext_id: null,
+          // Признаки поквартирного учёта в УСП не заводятся — мобилка
+          // использует их только для собственной разбивки по этажам.
+          is_apartment: false,
+          floors_count: 0,
+          sections_count: 0,
+          updated_at: now(),
+        },
+      ],
+    }),
+  },
+  {
+    view: 'v_assignments',
+    targets: ['contractors', 'contracts', 'estimate_works', 'work_assignments'],
+    split: (r) => ({
+      contractors: r.contractor_id
+        ? [{ id: r.contractor_id, company_name: r.contractor_name ?? 'Контрагент', updated_at: now() }]
+        : [],
+      contracts: r.contract_id
+        ? [
+            {
+              id: r.contract_id,
+              // project_id локального договора указывает на локальный
+              // projects, то есть на объект (erp.project_objects).
+              // Колонка обязательная — пустая строка вместо null, иначе
+              // санитайзер Watermelon подставит её молча.
+              project_id: r.object_id ?? '',
+              contractor_id: r.contractor_id ?? null,
+              contract_number: r.contract_number ?? r.contract_name ?? null,
+              ext_id: null,
+              updated_at: now(),
+            },
+          ]
+        : [],
+      estimate_works: r.est_doc_work_id
+        ? [
+            {
+              id: r.est_doc_work_id,
+              version_id: '',
+              name: r.work_name ?? 'Без названия',
+              unit: r.work_unit ?? '',
+              total_quantity: Number(r.estimate_volume ?? r.total_quantity ?? 0),
+              ext_id: null,
+              updated_at: now(),
+            },
+          ]
+        : [],
+      work_assignments: [
+        {
+          id: r.id,
+          estimate_work_id: r.est_doc_work_id ?? null,
+          // Пункт ГПР в договорах УСП не фигурирует: работа договора
+          // ссылается на строку сметы, а не на график.
+          wbs_item_id: null,
+          resource_id: r.est_doc_resource_id ?? null,
+          contract_id: r.contract_id ?? '',
+          assignment_type: r.assignment_type ?? 'FIXED',
+          assigned_quantity: Number(r.assigned_quantity ?? r.total_quantity ?? 0),
+          status: r.status ?? 'PLANNED',
+          updated_at: r.created_at ? new Date(r.created_at).getTime() : now(),
+        },
+      ],
+    }),
+  },
+  {
+    view: 'v_assignment_resources',
+    targets: ['estimate_resources'],
+    split: (r) => ({
+      estimate_resources: [
+        {
+          id: r.id,
+          name: r.resource_name ?? 'Ресурс',
+          // unit_name — локализованное «Килограмм», unit_code — «KG».
+          // Первое читаемее, второе всегда есть.
+          unit: r.unit_name ?? r.unit_code ?? '',
+          type_id: null,
+          norm: r.norm === null || r.norm === undefined ? null : Number(r.norm),
+          estimate_work_id: r.work_id ?? null,
+          updated_at: now(),
+        },
+      ],
+    }),
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. СОБСТВЕННЫЕ ТАБЛИЦЫ МОБИЛКИ
+// ═══════════════════════════════════════════════════════════════════════════
+
+type MobileTable = {
+  table: string;
   limit: number;
-  /** Колонка, по которой строки фильтруются на текущего пользователя. */
-  userColumn?: string;
   /**
-   * Таблица может ещё не существовать на сервере (новый раздел, миграция не
-   * применена). Отсутствие таблицы для такой записи — предупреждение, а не
-   * отказ всей синхронизации: остальные разделы продолжают работать.
+   * Таблицы может не быть на сервере, если миграция sql/usp не применена.
+   * Отсутствие — предупреждение, а не отказ всей синхронизации.
    */
   optional?: boolean;
 };
+
+/** Порядок важен: родители раньше детей, иначе ломаются внешние ключи. */
+const MOBILE_TABLES: MobileTable[] = [
+  { table: 'reports', limit: 10000 },
+  { table: 'material_movements', limit: 50000 },
+  { table: 'assets', limit: 20000 },
+  { table: 'asset_movements', limit: 20000 },
+  { table: 'inspections', limit: 20000 },
+  { table: 'prescriptions', limit: 20000 },
+  { table: 'deviations', limit: 20000 },
+  { table: 'purchase_requests', limit: 10000 },
+  { table: 'purchase_request_items', limit: 10000 },
+  { table: 'purchase_orders', limit: 10000 },
+  { table: 'purchase_order_items', limit: 10000 },
+  { table: 'warehouse_receipts', limit: 10000 },
+  { table: 'warehouse_receipt_items', limit: 10000 },
+  { table: 'documents', limit: 10000 },
+  { table: 'bpm_instances', limit: 10000 },
+  { table: 'bpm_tasks', limit: 10000 },
+  { table: 'document_signatures', limit: 10000 },
+];
+
+/**
+ * Таблицы, которые мобилка отправляет на сервер. Справочные сюда не входят
+ * принципиально: сметы и договоры ведёт УСП, а витрины доступны только на
+ * чтение — попытка записи в них завершилась бы ошибкой представления.
+ */
+const PUSH_ORDER = MOBILE_TABLES.map((t) => t.table);
+
+/** Локальные таблицы, которые наполняются витринами и никогда не отправляются. */
+const READ_ONLY_TABLES = new Set(FAN_OUTS.flatMap((f) => f.targets));
 
 /** Ошибка PostgREST «таблицы нет в схеме». */
 function isMissingTable(error: { code?: string; message?: string } | null): boolean {
@@ -44,125 +205,10 @@ function isMissingTable(error: { code?: string; message?: string } | null): bool
 }
 
 /**
- * Порядок важен: родительские таблицы идут раньше дочерних, иначе Watermelon
- * упирается в нарушение внешних ключей при вставке.
- *
- * Список — единственное место, где перечислены таблицы синхронизации. Раньше
- * запросы и проверки ошибок жили отдельными списками, из-за чего ошибки по
- * четырём таблицам (purchase_order_items, warehouse_receipt_items,
- * bpm_instances, document_signatures) молча терялись, а синхронизация
- * заканчивалась «успехом» с неполными данными.
- */
-const PULL_TABLES: PullTable[] = [
-  { table: 'construction_objects', incremental: true, limit: 10000 },
-  { table: 'contractors', incremental: false, limit: 10000 },
-  { table: 'projects', incremental: true, limit: 10000 },
-  { table: 'estimate_resources', incremental: false, limit: 50000 },
-  { table: 'estimate_works', incremental: true, limit: 50000 },
-  { table: 'wbs_items', incremental: false, limit: 50000 },
-  { table: 'contracts', incremental: true, limit: 50000 },
-  { table: 'work_assignments', incremental: true, limit: 50000 },
-  { table: 'reports', incremental: true, limit: 10000 },
-  { table: 'documents', incremental: true, limit: 10000, userColumn: 'signer_id' },
-  { table: 'purchase_requests', incremental: false, limit: 10000 },
-  { table: 'purchase_request_items', incremental: false, limit: 10000 },
-  { table: 'purchase_orders', incremental: false, limit: 10000 },
-  // Ниже четыре таблицы, у которых в Supabase НЕТ колонки updated_at.
-  // Фильтр .gt('updated_at', …) возвращал по ним 400 (42703), но раньше эти
-  // ошибки не проверялись и терялись — синхронизация «успешно» завершалась
-  // без части данных. Пока колонки не добавлены (sql/add_updated_at_columns.sql),
-  // тянем их целиком: таблицы небольшие.
-  { table: 'purchase_order_items', incremental: false, limit: 10000 },
-  { table: 'warehouse_receipts', incremental: false, limit: 10000 },
-  { table: 'warehouse_receipt_items', incremental: false, limit: 10000 },
-  { table: 'bpm_instances', incremental: false, limit: 10000 },
-  { table: 'bpm_tasks', incremental: false, limit: 10000, userColumn: 'assignee_id' },
-  { table: 'document_signatures', incremental: false, limit: 10000, userColumn: 'signer_id' },
-
-  // Разделы «Ресурсы» и «Контроль». optional: true — пока не выполнен
-  // sql/modules_resources_control.sql, эти таблицы на сервере отсутствуют,
-  // и синхронизация остальных данных не должна из-за этого падать.
-  { table: 'assets', incremental: false, limit: 20000, optional: true },
-  { table: 'asset_movements', incremental: false, limit: 20000, optional: true },
-  { table: 'material_movements', incremental: false, limit: 50000, optional: true },
-  { table: 'inspections', incremental: false, limit: 20000, optional: true },
-  { table: 'prescriptions', incremental: false, limit: 20000, optional: true },
-  { table: 'deviations', incremental: false, limit: 20000, optional: true },
-];
-
-/** Таблицы, которых может не быть на сервере — используется и при отправке. */
-const OPTIONAL_TABLES = new Set(
-  PULL_TABLES.filter((t) => t.optional).map((t) => t.table)
-);
-
-/**
- * Колонки, названия которых расходятся между Supabase и локальной схемой:
- * ключ — имя на сервере, значение — локальное. Watermelon отбрасывает поля,
- * которых нет в схеме, поэтому без переименования норма расхода приезжала как
- * пустая: на сервере она norm_per_unit, а локально — norm.
- */
-const COLUMN_ALIASES: Record<string, Record<string, string>> = {
-  estimate_resources: { norm_per_unit: 'norm' },
-};
-
-/** Переименование серверных колонок в локальные (pull). */
-function toLocalColumns(table: string, row: Record<string, any>): Record<string, any> {
-  const aliases = COLUMN_ALIASES[table];
-  if (!aliases) return row;
-  const out: Record<string, any> = {};
-  for (const key in row) {
-    out[aliases[key] ?? key] = row[key];
-  }
-  return out;
-}
-
-/** Обратное переименование перед отправкой (push). */
-function toServerColumns(table: string, row: Record<string, any>): Record<string, any> {
-  const aliases = COLUMN_ALIASES[table];
-  if (!aliases) return row;
-  const reverse = Object.fromEntries(Object.entries(aliases).map(([s, l]) => [l, s]));
-  const out: Record<string, any> = {};
-  for (const key in row) {
-    out[reverse[key] ?? key] = row[key];
-  }
-  return out;
-}
-
-/** Порядок отправки на сервер — тот же принцип «родители раньше детей». */
-const PUSH_ORDER = [
-  'contractors',
-  'construction_objects',
-  'projects',
-  'estimate_resources',
-  'estimate_works',
-  'contracts',
-  'wbs_items',
-  'work_assignments',
-  'reports',
-  'documents',
-  'purchase_requests',
-  'purchase_request_items',
-  'purchase_orders',
-  'purchase_order_items',
-  'warehouse_receipts',
-  'warehouse_receipt_items',
-  'bpm_instances',
-  'bpm_tasks',
-  'document_signatures',
-  'assets',
-  'asset_movements',
-  'material_movements',
-  'inspections',
-  'prescriptions',
-  'deviations',
-];
-
-/**
  * Текущая синхронизация. Экраны запускают её независимо (авто-синк на
  * дашборде, pull-to-refresh, кнопка на экране синхронизации), и параллельные
- * прогоны конфликтовали между собой: 19 запросов × N, гонка за блокировку
- * токена и повторная запись одних и тех же изменений. Одновременный вызов
- * теперь присоединяется к уже идущему прогону.
+ * прогоны конфликтовали между собой. Одновременный вызов присоединяется к
+ * уже идущему прогону.
  */
 let inFlight: Promise<void> | null = null;
 
@@ -179,102 +225,110 @@ export function syncDatabase(forceFullSync: boolean = false): Promise<void> {
   return inFlight;
 }
 
-async function runSync(forceFullSync: boolean): Promise<void> {
+async function runSync(_forceFullSync: boolean): Promise<void> {
   await synchronize({
     database,
 
-    pullChanges: async ({ lastPulledAt }) => {
-      const since = (lastPulledAt && !forceFullSync)
-        ? new Date(lastPulledAt).toISOString()
-        : '1970-01-01T00:00:00Z';
-
-      console.info(`[Sync] Pulling changes since: ${since}${forceFullSync ? ' (FORCE FULL)' : ''}`);
-
+    // ─────────────────────────────────────────────────────────────────────
+    // PULL
+    // ─────────────────────────────────────────────────────────────────────
+    pullChanges: async () => {
       // Берём id из локальной сессии, а не через getUser(): тот делает
-      // сетевой запрос к /auth/v1/user и захватывает блокировку токена, из-за
-      // чего при параллельных синхронизациях падало с
-      // «Lock ... was released because another request stole it».
+      // сетевой запрос и захватывает блокировку токена, из-за чего при
+      // параллельных синхронизациях падало с «Lock ... was stolen».
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) {
         throw new Error(`Не удалось получить сессию: ${sessionError.message}`);
       }
-      const user = session?.user;
-      if (!user) {
+      if (!session?.user) {
         throw new Error('Пользователь не авторизован для синхронизации');
       }
 
-      const responses = await Promise.all(
-        PULL_TABLES.map((t) => {
-          let query = supabase.from(t.table).select('*').limit(t.limit);
-          if (t.incremental) query = query.gt('updated_at', since);
-          if (t.userColumn) query = query.eq(t.userColumn, user.id);
-          return query;
-        })
-      );
+      const client = supabase.schema(MOBILE_SCHEMA);
 
-      // Ошибки собираем по ВСЕМ таблицам: частично загруженная база хуже
-      // явного отказа — пользователь работал бы с неполными данными.
-      // Исключение — необязательные таблицы, которых ещё нет на сервере.
+      // Витрины и собственные таблицы тянем одним пакетом запросов.
+      // Инкремента нет намеренно: у представлений УСП нет надёжного
+      // updated_at, а объёмы после фильтрации по договорам — сотни строк.
+      const [viewRes, tableRes] = await Promise.all([
+        Promise.all(FAN_OUTS.map((f) => client.from(f.view).select('*').limit(20000))),
+        Promise.all(MOBILE_TABLES.map((t) => client.from(t.table).select('*').limit(t.limit))),
+      ]);
+
       const errors: string[] = [];
       const skipped: string[] = [];
 
-      responses.forEach((res, i) => {
-        const t = PULL_TABLES[i];
-        if (!res.error) return;
-        if (t.optional && isMissingTable(res.error)) {
-          skipped.push(t.table);
+      // Пустые наборы для всех локальных таблиц: Watermelon требует ключ на
+      // каждую коллекцию, иначе падает на неполном наборе изменений.
+      const rows: Record<string, any[]> = {};
+      for (const f of FAN_OUTS) for (const t of f.targets) rows[t] = [];
+      for (const t of MOBILE_TABLES) rows[t.table] = [];
+      // wbs_items источника в УСП не имеет: пункты графика к работам
+      // договора не привязаны. Коллекция должна присутствовать пустой.
+      rows['wbs_items'] = [];
+
+      viewRes.forEach((res, i) => {
+        const f = FAN_OUTS[i];
+        if (res.error) {
+          if (isMissingTable(res.error)) {
+            skipped.push(f.view);
+            return;
+          }
+          errors.push(`${f.view}: ${res.error.message}`);
           return;
         }
-        errors.push(`${t.table}: ${res.error.message}`);
+        for (const raw of res.data ?? []) {
+          const parts = f.split(raw);
+          for (const [table, list] of Object.entries(parts)) {
+            rows[table].push(...list);
+          }
+        }
+      });
+
+      tableRes.forEach((res, i) => {
+        const t = MOBILE_TABLES[i];
+        if (res.error) {
+          if (isMissingTable(res.error)) {
+            skipped.push(t.table);
+            return;
+          }
+          errors.push(`${t.table}: ${res.error.message}`);
+          return;
+        }
+        rows[t.table].push(...(res.data ?? []));
       });
 
       if (skipped.length > 0) {
         console.warn(
-          `[Sync] Таблиц нет на сервере, раздел работает только локально: ${skipped.join(', ')}. ` +
-            'Выполните sql/modules_resources_control.sql в Supabase.'
+          `[Sync] Нет на сервере: ${skipped.join(', ')}. ` +
+            'Примените миграции из sql/usp и откройте схему mobile в PostgREST.'
         );
       }
-
       if (errors.length > 0) {
         throw new Error(`Ошибка загрузки данных: \n${errors.join('\n')}`);
       }
 
-      const counts: Record<string, number> = {};
-      PULL_TABLES.forEach((t, i) => {
-        counts[t.table] = responses[i].data?.length ?? 0;
-      });
-      console.log('[Sync] Fetched counts:', counts);
-
-      const skippedSet = new Set(skipped);
       const changes: Record<string, { created: any[]; updated: any[]; deleted: string[] }> = {};
-      for (let i = 0; i < PULL_TABLES.length; i++) {
-        const t = PULL_TABLES[i];
-        // Пропущенной таблице отдаём пустой набор: Watermelon требует ключ
-        // для каждой коллекции, иначе падает на неполном наборе изменений.
-        changes[t.table] = skippedSet.has(t.table)
-          ? { created: [], updated: [], deleted: [] }
-          : await mapToChanges(t.table, responses[i].data);
+      for (const [table, list] of Object.entries(rows)) {
+        changes[table] = await mapToChanges(table, dedupeById(list));
       }
+
+      console.log(
+        '[Sync] Загружено:',
+        Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, v.length]))
+      );
 
       return { changes, timestamp: Date.now() };
     },
 
     // ─────────────────────────────────────────────────────────────────────
-    // PUSH: Отправляем локальные изменения на сервер
+    // PUSH: только собственные таблицы мобилки
     // ─────────────────────────────────────────────────────────────────────
     pushChanges: async ({ changes }) => {
-      const pushSummary = Object.entries(changes as any).reduce((acc, [table, c]: [string, any]) => {
-        const total = (c.created?.length ?? 0) + (c.updated?.length ?? 0) + (c.deleted?.length ?? 0);
-        if (total > 0) acc[table] = total;
-        return acc;
-      }, {} as Record<string, number>);
-      // Раньше сюда писался весь payload целиком: гигантские логи с
-      // персональными данными и координатами. Достаточно счётчиков.
-      console.info('[Sync] Changes to push:', pushSummary);
+      const client = supabase.schema(MOBILE_SCHEMA);
 
       for (const table of PUSH_ORDER) {
-        if (!(changes as any)[table]) continue;
         const raw = (changes as any)[table];
+        if (!raw) continue;
 
         // Демо-данные живут только на устройстве: их id начинаются с
         // DEMO_ID_PREFIX. Иначе тестовые записи уехали бы в рабочую базу.
@@ -282,91 +336,77 @@ async function runSync(forceFullSync: boolean): Promise<void> {
         const updated = (raw.updated ?? []).filter((r: any) => !isDemoId(r.id));
         const deleted = (raw.deleted ?? []).filter((id: string) => !isDemoId(id));
 
-        // Сначала удаляем записи на сервере
-        if (deleted && deleted.length > 0) {
-          console.info(`[Sync] Deleting ${deleted.length} records from ${table}...`);
-          const { error } = await supabase.from(table).delete().in('id', deleted);
+        if (deleted.length > 0) {
+          const { error } = await client.from(table).delete().in('id', deleted);
           if (error) {
-            if (OPTIONAL_TABLES.has(table) && isMissingTable(error)) {
+            if (isMissingTable(error)) {
               console.warn(`[Sync] ${table} нет на сервере — удаление пропущено`);
             } else {
-              console.error(`[Sync] Delete failed for ${table}:`, error);
-              throw new Error(`Ошибка удаления ${table}: ${error.message} (${error.hint || ''})`);
+              throw new Error(`Ошибка удаления ${table}: ${error.message}`);
             }
           }
         }
 
-        const allChanges = [...created, ...updated];
-        if (allChanges.length === 0) continue;
+        const all = [...created, ...updated];
+        if (all.length === 0) continue;
 
-        console.info(`[Sync] Pushing ${allChanges.length} records to ${table}...`);
+        const records = [];
+        for (const row of all) {
+          const { _status, _changed, sync_status, updated_at, ...fields } = row;
 
-        const recordsToPush = [];
-        for (const row of allChanges) {
-          // Копируем объект параметров
-          const { _status, _changed, sync_status, updated_at, ...serverFields } = row;
-
-          // Специальная обработка для фотографий в отчетах
-          if (table === 'reports' && serverFields.photo_uri && serverFields.photo_uri.startsWith('file:')) {
+          if (table === 'reports' && fields.photo_uri?.startsWith('file:')) {
             try {
-              console.info(`[Sync] Uploading photo for report ${serverFields.id}...`);
-              const remoteUrl = await uploadFileToSupabase(serverFields.photo_uri);
-              if (remoteUrl) {
-                serverFields.photo_uri = remoteUrl;
-              } else {
-                // Локальный file:// путь на сервере бесполезен и в чужих
-                // клиентах превратится в битую картинку — лучше пустое поле.
-                serverFields.photo_uri = null;
-              }
+              const remoteUrl = await uploadFileToSupabase(fields.photo_uri);
+              // Локальный file:// путь на сервере бесполезен и в чужих
+              // клиентах превратится в битую картинку — лучше пустое поле.
+              fields.photo_uri = remoteUrl ?? null;
             } catch (uploadError) {
-              console.warn(`[Sync] Photo upload failed for ${serverFields.id}, skipping photo:`, uploadError);
-              serverFields.photo_uri = null;
+              console.warn(`[Sync] Фото не загружено для ${fields.id}:`, uploadError);
+              fields.photo_uri = null;
             }
           }
 
-          // Обеспечиваем непустую дату для required_date
-          if (table === 'purchase_requests' && !serverFields.required_date) {
-            serverFields.required_date = Date.now();
-          }
-
-          // Преобразование типов полей дат для совместимости с Supabase PostgreSQL
-          for (const key in serverFields) {
-            const val = serverFields[key];
-            if (typeof val === 'number') {
-              if (key === 'required_date') {
-                serverFields[key] = new Date(val).toISOString().split('T')[0];
-              } else if (key.endsWith('_at')) {
-                serverFields[key] = new Date(val).toISOString();
-              }
+          for (const key in fields) {
+            const val = fields[key];
+            if (typeof val === 'number' && key.endsWith('_at')) {
+              fields[key] = new Date(val).toISOString();
             }
           }
+          if (table === 'purchase_requests' && typeof fields.required_date === 'number') {
+            fields.required_date = new Date(fields.required_date).toISOString().split('T')[0];
+          }
 
-          recordsToPush.push(toServerColumns(table, serverFields));
+          records.push(fields);
         }
 
-        const { error } = await supabase.from(table).upsert(recordsToPush);
-
+        console.info(`[Sync] Отправка ${records.length} записей в ${table}`);
+        const { error } = await client.from(table).upsert(records);
         if (error) {
-          // Раздел может работать локально, пока миграция не применена —
-          // отсутствие таблицы не должно ронять отправку остальных данных.
-          if (OPTIONAL_TABLES.has(table) && isMissingTable(error)) {
+          if (isMissingTable(error)) {
             console.warn(
-              `[Sync] ${table} нет на сервере: ${recordsToPush.length} записей остались локально. ` +
-                'Выполните sql/modules_resources_control.sql.'
+              `[Sync] ${table} нет на сервере: ${records.length} записей остались локально. ` +
+                'Примените sql/usp/01_mobile_schema.sql.'
             );
             continue;
           }
-          console.error(`[Sync] Push failed for ${table}:`, error);
           throw new Error(`Ошибка отправки ${table}: ${error.message} (${error.hint || ''})`);
         }
-        console.log(`[Sync] Successfully pushed ${table}`);
       }
     },
 
     migrationsEnabledAtVersion: 1,
   });
 
-  await markPushedReportsAsSynced();
+  await markPushedRecordsAsSynced();
+}
+
+/** Строки из витрин повторяются: одна работа приносит один и тот же договор. */
+function dedupeById(list: any[]): any[] {
+  const seen = new Map<string, any>();
+  for (const row of list) {
+    if (row?.id && !seen.has(row.id)) seen.set(row.id, row);
+  }
+  return Array.from(seen.values());
 }
 
 /**
@@ -374,30 +414,31 @@ async function runSync(forceFullSync: boolean): Promise<void> {
  * диагностической ошибкой попытку «создать» уже существующий id.
  */
 async function mapToChanges(table: string, records: any[] | null) {
-  if (!records) return { created: [], updated: [], deleted: [] };
+  if (!records || records.length === 0) {
+    return { created: [], updated: [], deleted: [] as string[] };
+  }
 
   const mapped = records.map((r) => {
-    const newR = toLocalColumns(table, r);
-    // Преобразуем строковые даты из Supabase обратно в числа для WatermelonDB
-    for (const key in newR) {
-      const val = newR[key];
+    const row = { ...r };
+    // Даты Supabase приходят строками, Watermelon хранит числа.
+    for (const key in row) {
+      const val = row[key];
       if (typeof val === 'string' && (key.endsWith('_at') || key === 'required_date')) {
-        newR[key] = new Date(val).getTime();
+        const t = new Date(val).getTime();
+        if (!Number.isNaN(t)) row[key] = t;
       }
     }
-    if (!newR.updated_at) newR.updated_at = Date.now();
-    return newR;
+    if (!row.updated_at) row.updated_at = Date.now();
+    return row;
   });
 
-  // Получаем все существующие ID в этой таблице локально
   let existingIds: string[];
   try {
     existingIds = await database.get(table).query().fetchIds();
   } catch (err: any) {
     // На web (LokiJS) отсутствие локальной коллекции даёт невнятное
     // «Cannot read properties of null (reading 'chain')». Обычно это значит,
-    // что локальная база осталась на старой версии схемы и миграция не
-    // создала новые таблицы. Говорим это прямо и подсказываем действие.
+    // что локальная база осталась на старой версии схемы.
     if (String(err?.message ?? '').includes('chain')) {
       throw new Error(
         `Локальная база не содержит таблицу «${table}» — она осталась на старой ` +
@@ -416,31 +457,39 @@ async function mapToChanges(table: string, records: any[] | null) {
 }
 
 /**
- * Собственное поле sync_status у отчётов — прикладное, Watermelon про него не
- * знает и сам не обновляет. Поэтому после успешного push помечаем отправленные
- * отчёты как synced, иначе они навсегда остались бы в списке «ожидают отправки».
+ * Прикладное поле sync_status Watermelon не знает и сам не обновляет. Без
+ * этого шага отправленные записи навсегда оставались бы в списке «ожидают
+ * отправки».
  */
-async function markPushedReportsAsSynced(): Promise<void> {
-  try {
-    const pendingReports = await database.collections
-      .get('reports')
-      .query(Q.where('sync_status', 'pending_sync'))
-      .fetch();
+async function markPushedRecordsAsSynced(): Promise<void> {
+  // Модель отчёта назвала поле reportSyncStatus, остальные — recordSyncStatus.
+  // Присваивать оба вслепую нельзя: у модели нет недекорированного свойства,
+  // и запись ушла бы в пустоту вместо колонки.
+  const FIELD: Record<string, string> = { reports: 'reportSyncStatus' };
 
-    if (pendingReports.length === 0) return;
+  for (const { table } of MOBILE_TABLES) {
+    try {
+      const pending = await database.collections
+        .get(table)
+        .query(Q.where('sync_status', 'pending_sync'))
+        .fetch();
+      if (pending.length === 0) continue;
 
-    console.log(`[Sync] Post-sync: updating ${pendingReports.length} reports to synced status`);
-    await database.write(async () => {
-      await database.batch(
-        ...pendingReports.map((report) =>
-          report.prepareUpdate((r) => {
-            (r as any).reportSyncStatus = 'synced';
-          })
-        )
-      );
-    });
-  } catch (err) {
-    console.error('[Sync] Post-sync cleanup failed:', err);
+      const field = FIELD[table] ?? 'recordSyncStatus';
+      await database.write(async () => {
+        await database.batch(
+          ...pending.map((rec) =>
+            rec.prepareUpdate((r: any) => {
+              r[field] = 'synced';
+            })
+          )
+        );
+      });
+    } catch {
+      // Часть таблиц (закупки, документы) колонки sync_status не имеет —
+      // запрос по ней здесь ожидаемо падает и ничего не значит.
+      continue;
+    }
   }
 }
 
@@ -464,23 +513,22 @@ async function uploadFileToSupabase(localUri: string): Promise<string | null> {
 
     const { data, error } = await supabase.storage
       .from('report-photos')
-      .upload(filePath, bytes, {
-        contentType: 'image/jpeg',
-        upsert: true,
-      });
+      .upload(filePath, bytes, { contentType: 'image/jpeg', upsert: true });
 
     if (error) {
       console.error('[Storage] Upload error:', error);
       return null;
     }
 
-    const { data: urlData } = supabase.storage
-      .from('report-photos')
-      .getPublicUrl(data.path);
-
-    return urlData.publicUrl;
+    return supabase.storage.from('report-photos').getPublicUrl(data.path).data.publicUrl;
   } catch (err) {
     console.error('[Storage] Exception during upload:', err);
     return null;
   }
 }
+
+/** Список таблиц для экрана диагностики. */
+export const SYNCED_TABLES = [
+  ...READ_ONLY_TABLES,
+  ...MOBILE_TABLES.map((t) => t.table),
+];
