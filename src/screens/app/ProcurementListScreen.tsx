@@ -1,3 +1,4 @@
+import { ScreenHeader } from '@/components/ui';
 import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -99,19 +100,11 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Text style={styles.backText}>‹ Назад</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Закупки</Text>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => navigation.navigate('CreateRequest', { projectId: '' })}
-          activeOpacity={0.8}
-        >
+      <ScreenHeader title="Закупки" subtitle="Заявки и заказы" onBack={() => navigation.goBack()} right={
+        <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('CreateRequest', { projectId: '' })}>
           <Text style={styles.addBtnText}>+ Создать</Text>
         </TouchableOpacity>
-      </View>
+      } />
 
       <View style={styles.tabContainer}>
         <TouchableOpacity
@@ -167,7 +160,7 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.colors.canvas },
+  container: { width: '100%', maxWidth: 1200, alignSelf: 'center', flex: 1, backgroundColor: T.colors.canvas },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
   backBtn: { padding: 4 },
   backText: { color: T.colors.textSecondary, fontSize: 16 },

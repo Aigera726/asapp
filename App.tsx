@@ -23,7 +23,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <StatusBar style="dark" backgroundColor={T.colors.canvasDeep} />
+        <StatusBar style="dark" />
         {!isLoaded ? (
           // Брендированный сплэш вместо пустого экрана: загрузка конфига
           // сервера может занять заметное время на холодном старте.

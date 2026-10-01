@@ -8,7 +8,10 @@ export default class EstimateResource extends Model {
   @field('unit') unit: string;
   @field('type_id') typeId: number;
   /** Норма расхода на единицу работы (на сервере — norm_per_unit). */
-  @field('norm') norm: number;
+  @field('norm') norm: number | null;
+  @field('estimate_quantity') estimateQuantity: number | null;
+  @field('resource_kind') resourceKind: string | null;
+  @field('in_actual_estimate') inActualEstimate: boolean;
   @field('estimate_work_id') estimateWorkId: string | null;
   @readonly @date('updated_at') updatedAt: Date;
 }

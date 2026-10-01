@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  TextInput,
 } from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList, TabParamList } from '@/navigation';
 import { database } from '@/database';
@@ -23,7 +25,15 @@ import EstimateWork from '@/database/models/EstimateWork';
 import EstimateResource from '@/database/models/EstimateResource';
 import Contractor from '@/database/models/Contractor';
 import { T } from '@/theme';
+import { ECO as E, ECO_STATUS as S } from '@/theme/ecopro';
 import { Icon } from '@/components/Icon';
+import { EmptyState } from '@/components/ui';
+import { syncDatabase } from '@/database/sync';
+import { useAuthStore } from '@/store/authStore';
+import { VolumeBar } from '@/components/VolumeBar';
+import { formatQty } from '@/lib/domain';
+import { loadWorkVolumes } from '@/lib/workVolume';
+import { VolumeSummary } from '@/database/workVolume';
 
 type TasksScreenRouteProp = RouteProp<TabParamList, 'Tasks'>;
 
@@ -41,11 +51,16 @@ interface WorkAssignmentWithName {
   contract_number: string;
   contractor_name: string;
   project_id: string;
+  volume: VolumeSummary | null;
 }
 
 interface Props {
   route: TasksScreenRouteProp;
 }
+
+/** Не чаще раза в 30 секунд: вкладку переключают часто. */
+const AUTO_SYNC_INTERVAL_MS = 30_000;
+let lastAutoSync = 0;
 
 function TasksScreen({ route }: Props) {
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
@@ -53,6 +68,17 @@ function TasksScreen({ route }: Props) {
   
   const [assignments, setAssignments] = useState<WorkAssignmentWithName[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const insets = useSafeAreaInsets();
+  const { isDemoMode } = useAuthStore();
+
+  // Решения ERP приходят в любой момент: при каждом открытии вкладки тихо
+  // подтягиваем свежие объёмы, иначе остаток на карточках отстаёт.
+  useFocusEffect(useCallback(() => {
+    if (isDemoMode || Date.now() - lastAutoSync < AUTO_SYNC_INTERVAL_MS) return;
+    lastAutoSync = Date.now();
+    syncDatabase().catch((e) => console.warn('[TasksScreen] Фоновая синхронизация:', e?.message));
+  }, [isDemoMode]));
 
   // Filters State
   const [objects, setObjects] = useState<ConstructionObject[]>([]);
@@ -71,7 +97,7 @@ function TasksScreen({ route }: Props) {
   const loadFilters = async () => {
     try {
       // Find valid contracts, projects, and objects based on actual work assignments
-      const allAssignments = await database.collections.get<WorkAssignment>('work_assignments').query().fetch();
+      const allAssignments = await database.collections.get<WorkAssignment>('work_assignments').query(Q.where('is_available', true)).fetch();
       const validContractIds = new Set<string>();
       allAssignments.forEach(a => {
         if (a.contractId) validContractIds.add(a.contractId);
@@ -133,13 +159,21 @@ function TasksScreen({ route }: Props) {
   useEffect(() => {
     const subscription = database.collections.get<WorkAssignment>('work_assignments')
       .query()
-      .observe()
+      .observeWithColumns(['is_available', 'work_confirmed_volume', 'work_pending_volume',
+        'assignment_confirmed_volume', 'assignment_pending_volume'])
       .subscribe(() => {
+        loadFilters();
         loadAssignments();
       });
+    // Новый отчёт или решение ERP меняют остаток на карточке.
+    const reportsSubscription = database.collections.get('reports')
+      .query()
+      .observeWithColumns(['status', 'sync_status'])
+      .subscribe(() => loadAssignments());
 
     return () => {
       subscription.unsubscribe();
+      reportsSubscription.unsubscribe();
       loadGeneration.current += 1;
     };
   }, [selectedObjectId, selectedProjectId, selectedContractId]);
@@ -167,7 +201,7 @@ function TasksScreen({ route }: Props) {
         contractIdsToFilter = oContracts.map(c => c.id);
       }
 
-      let queryConditions: any[] = [];
+      let queryConditions: any[] = [Q.where('is_available', true)];
       if (contractIdsToFilter !== null) {
          if (contractIdsToFilter.length === 0) {
            if (!isStale()) {
@@ -221,6 +255,7 @@ function TasksScreen({ route }: Props) {
       const resourcesMap = new Map(resources.map(r => [r.id, r]));
       const contractsMap = new Map(contractsData.map(c => [c.id, c]));
       const contractorsMap = new Map(contractors.map(c => [c.id, c]));
+      const volumes = await loadWorkVolumes(rawAssignments);
 
       // Transform
       const mapped: WorkAssignmentWithName[] = rawAssignments.map((wa) => {
@@ -254,6 +289,7 @@ function TasksScreen({ route }: Props) {
           contract_number: contract?.contractNumber || '',
           contractor_name: contractor?.companyName || 'Неизвестный контрагент',
           project_id: contract?.projectId || '',
+          volume: volumes.get(wa.id)?.summary ?? null,
         };
       });
 
@@ -288,6 +324,8 @@ function TasksScreen({ route }: Props) {
         <Text style={styles.chipsLabel}>{placeholder}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsContent}>
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityState={{ selected: selectedId === null }}
             style={[styles.chip, selectedId === null && styles.chipActive]}
             onPress={() => onSelect(null)}
           >
@@ -296,10 +334,12 @@ function TasksScreen({ route }: Props) {
           {data.map(item => (
             <TouchableOpacity
               key={item.id}
+              accessibilityRole="button"
+              accessibilityState={{ selected: selectedId === item.id }}
               style={[styles.chip, selectedId === item.id && styles.chipActive]}
               onPress={() => onSelect(selectedId === item.id ? null : item.id)}
             >
-              <Text style={[styles.chipText, selectedId === item.id && styles.chipTextActive]}>
+              <Text style={[styles.chipText, selectedId === item.id && styles.chipTextActive]} numberOfLines={1}>
                 {item[labelKey]}
               </Text>
             </TouchableOpacity>
@@ -309,100 +349,148 @@ function TasksScreen({ route }: Props) {
     );
   };
 
-  const renderTaskCard = ({ item }: { item: WorkAssignmentWithName }) => {
-    const statusColors: Record<string, string> = {
-      PLANNED: T.colors.warning,
-      IN_PROGRESS: T.colors.primary,
-      COMPLETED: T.colors.success,
-      SUSPENDED: T.colors.danger,
-    };
+  const STATUS: Record<string, { label: string; color: string; bg: string }> = {
+    PLANNED: { label: 'Запланировано', color: S.warning, bg: S.warningSoft },
+    IN_PROGRESS: { label: 'В работе', color: E.blue, bg: E.soft },
+    COMPLETED: { label: 'Выполнено', color: S.success, bg: S.successSoft },
+    SUSPENDED: { label: 'Приостановлено', color: S.danger, bg: S.dangerSoft },
+  };
 
-    const statusLabels: Record<string, string> = {
-      PLANNED: 'Запланировано',
-      IN_PROGRESS: 'В работе',
-      COMPLETED: 'Выполнено',
-      SUSPENDED: 'Приостановлено',
-    };
+  const renderTaskCard = ({ item }: { item: WorkAssignmentWithName }) => {
+    const status = STATUS[item.status] ?? { label: item.status, color: E.muted, bg: S.surface2 };
+    const exhausted = item.volume != null && item.volume.limit <= 0;
 
     return (
       <View style={styles.taskCard}>
-        <View style={styles.taskHeader}>
-          <View style={[styles.statusDot, { backgroundColor: statusColors[item.status] ?? T.colors.textDisabled }]} />
-          <Text style={styles.taskStatus}>
-            {statusLabels[item.status] ?? item.status}
-          </Text>
-          <View style={styles.spacer} />
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText}>{item.position_type}</Text>
+        <View style={styles.taskTop}>
+          <View style={styles.taskIcon}>
+            <Icon name={item.resource_id ? 'package-variant-closed' : 'hammer-wrench'} size={20} color={E.blue} />
+          </View>
+          <View style={styles.taskBody}>
+            <Text style={styles.taskName} numberOfLines={3}>{item.work_name}</Text>
+            <Text style={styles.contractorText} numberOfLines={1}>
+              {item.contractor_name} · Договор № {item.contract_number || '—'}
+            </Text>
           </View>
         </View>
 
-        <Text style={styles.contractorText} numberOfLines={1}>
-          {item.contractor_name} • Договор №{item.contract_number}
-        </Text>
-
-        <Text style={styles.taskName} numberOfLines={3}>
-          {item.work_name}
-        </Text>
-        
-        <View style={styles.quantityRow}>
-          <Text style={styles.taskId}>#{item.id.slice(0, 8)}</Text>
-          <View style={styles.spacer} />
-          <Text style={styles.taskQuantity}>
-            {item.assigned_quantity ?? '—'} {item.work_unit}
-          </Text>
+        <View style={styles.pillsRow}>
+          <View style={[styles.pill, { backgroundColor: status.bg }]}>
+            <View style={[styles.pillDot, { backgroundColor: status.color }]} />
+            <Text style={[styles.pillText, { color: status.color }]}>{status.label}</Text>
+          </View>
+          <View style={[styles.pill, { backgroundColor: S.surface2 }]}>
+            <Text style={[styles.pillText, { color: E.muted }]}>{item.position_type}</Text>
+          </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.reportBtn}
-          activeOpacity={0.8}
-          onPress={() => handleReportPress(item)}
-        >
-          <Text style={styles.reportBtnText}>+ Внести отчёт</Text>
-        </TouchableOpacity>
+        {item.volume ? (
+          <View style={styles.volumeBox}>
+            <View style={styles.volumeHead}>
+              <Text style={styles.volumeKicker}>ДОСТУПНО К ОТПРАВКЕ</Text>
+              <Text style={styles.volumePlan}>план {formatQty(item.volume.plan)} {item.work_unit}</Text>
+            </View>
+            <Text style={[styles.volumeValue, exhausted && { color: E.muted }]}>
+              {formatQty(item.volume.limit)} <Text style={styles.volumeUnit}>{item.work_unit}</Text>
+            </Text>
+            <VolumeBar volume={item.volume} legend={item.volume.pending > 0 || item.volume.confirmed > 0} />
+          </View>
+        ) : (
+          <View style={styles.volumeBox}>
+            <Text style={styles.volumeKicker}>ОБЪЁМ ПО ДОГОВОРУ</Text>
+            <Text style={styles.volumeValue}>
+              {item.assigned_quantity == null ? '—' : formatQty(item.assigned_quantity)} <Text style={styles.volumeUnit}>{item.work_unit}</Text>
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.taskFooter}>
+          <Text style={styles.taskId}>#{item.id.slice(0, 8)}</Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={'Внести объём: ' + item.work_name}
+            style={[styles.reportBtn, exhausted && styles.reportBtnMuted]}
+            activeOpacity={0.85}
+            onPress={() => handleReportPress(item)}
+          >
+            <Icon name={exhausted ? 'history' : 'plus'} size={17} color={exhausted ? E.blue : '#FFFFFF'} />
+            <Text style={[styles.reportBtnText, exhausted && { color: E.blue }]}>
+              {exhausted ? 'История отправок' : 'Внести объём'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>Задания</Text>
-          <View style={styles.headerActions}>
-            <Text style={styles.headerCount}>{assignments.length} поз.</Text>
-          </View>
+  const query = search.trim().toLocaleLowerCase();
+  const visible = query
+    ? assignments.filter(a => a.work_name.toLocaleLowerCase().includes(query)
+      || a.contract_number.toLocaleLowerCase().includes(query))
+    : assignments;
+
+  const header = (
+    <>
+      <View style={styles.intro}>
+        <Text style={styles.kicker}>ОПЕРАТИВНЫЙ УЧЁТ</Text>
+        <View style={styles.titleRow}>
+          <Text accessibilityRole="header" style={styles.pageTitle}>Работы</Text>
+          <Text style={styles.headerCount}>{visible.length}</Text>
         </View>
-        
-        {/* Filters */}
-        <View style={styles.filtersContainer}>
-          {renderFilterChips(objects, selectedObjectId, setSelectedObjectId, 'name', 'Объект')}
-          {renderFilterChips(projects, selectedProjectId, setSelectedProjectId, 'name', 'Проект')}
-          {renderFilterChips(contracts, selectedContractId, setSelectedContractId, 'contractNumber', 'Договор')}
-        </View>
+        <Text style={styles.pageSubtitle}>Выберите работу и внесите выполненный объём</Text>
       </View>
 
+      <View style={styles.search}>
+        <Icon name="magnify" size={20} color={E.muted} />
+        <TextInput
+          accessibilityLabel="Поиск работы"
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Найти работу или договор"
+          placeholderTextColor={E.muted}
+          style={styles.searchInput}
+          autoCorrect={false}
+        />
+        {search !== '' && (
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Очистить поиск" onPress={() => setSearch('')} style={styles.clearSearch}>
+            <Icon name="close" size={18} color={E.muted} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.filtersContainer}>
+        {renderFilterChips(objects, selectedObjectId, setSelectedObjectId, 'name', 'Объект')}
+        {renderFilterChips(projects, selectedProjectId, setSelectedProjectId, 'name', 'Проект')}
+        {renderFilterChips(contracts, selectedContractId, setSelectedContractId, 'contractNumber', 'Договор')}
+      </View>
+    </>
+  );
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {loading ? (
         <View style={styles.centerContent}>
-          <ActivityIndicator size="large" color={T.colors.primary} />
-          <Text style={styles.loadingText}>Загрузка заданий...</Text>
+          <ActivityIndicator size="large" color={E.blue} />
+          <Text style={styles.loadingText}>Загрузка работ…</Text>
         </View>
       ) : (
         <FlatList
           id="assignments-list"
-          data={assignments}
+          data={visible}
           keyExtractor={(item) => item.id}
           renderItem={renderTaskCard}
+          ListHeaderComponent={header}
           contentContainerStyle={styles.listContent}
-          ListEmptyComponent={() => (
-            <View style={styles.emptyContainer}>
-              <Icon name="clipboard-list-outline" size={34} color={T.colors.textDisabled} />
-              <Text style={styles.emptyTitle}>Нет заданий</Text>
-              <Text style={styles.emptyText}>
-                Измените фильтры или синхронизируйте базу данных.
-              </Text>
-            </View>
-          )}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <EmptyState
+              icon="clipboard-list-outline"
+              title={query ? 'Ничего не найдено' : 'Нет работ'}
+              text={query ? 'Попробуйте другое название работы или номер договора.' : 'Измените фильтры или синхронизируйте данные.'}
+              actionLabel={query ? 'Сбросить поиск' : undefined}
+              onAction={query ? () => setSearch('') : undefined}
+            />
+          }
         />
       )}
     </View>
@@ -412,189 +500,53 @@ function TasksScreen({ route }: Props) {
 export default TasksScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: T.colors.canvas,
-    paddingTop: T.spacing.lg,
-  },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    color: T.colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  header: {
-    paddingHorizontal: 0,
-    marginBottom: 8,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 12,
-    marginBottom: 16,
-    paddingHorizontal: 20,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: T.colors.textPrimary,
-  },
-  headerCount: {
-    fontSize: 14,
-    color: T.colors.primary,
-    fontWeight: '600',
-  },
-  headerActions: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  filtersContainer: {
-    marginBottom: 8,
-  },
-  chipsWrapper: {
-    marginBottom: 12,
-  },
-  chipsLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: T.colors.textSecondary,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-    paddingHorizontal: 20,
-  },
-  chipsContent: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  chip: {
-    backgroundColor: T.colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: T.colors.border,
-  },
-  chipActive: {
-    backgroundColor: T.colors.primarySoft,
-    borderColor: T.colors.primary,
-  },
-  chipText: {
-    color: T.colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  chipTextActive: {
-    color: T.colors.primaryText,
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    flexGrow: 1,
-  },
-  taskCard: {
-    backgroundColor: T.colors.surface,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: T.colors.border,
-  },
-  taskHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  taskStatus: {
-    fontSize: 12,
-    color: T.colors.textSecondary,
-    fontWeight: '600',
-  },
-  spacer: {
-    flex: 1,
-  },
-  typeBadge: {
-    backgroundColor: T.colors.border,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  typeBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: T.colors.textSecondary,
-    textTransform: 'uppercase',
-  },
-  contractorText: {
-    fontSize: 13,
-    color: T.colors.textSecondary,
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  taskName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: T.colors.textPrimary,
-    marginBottom: 10,
-    lineHeight: 22,
-  },
-  quantityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  taskId: {
-    fontSize: 12,
-    color: T.colors.textMuted,
-  },
-  taskQuantity: {
-    fontSize: 14,
-    color: T.colors.primary,
-    fontWeight: '700',
-  },
-  reportBtn: {
-    backgroundColor: T.colors.primarySoft,
-    borderRadius: 10,
-    padding: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: T.colors.primary,
-  },
-  reportBtnText: {
-    color: T.colors.primaryText,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    paddingTop: 60,
-  },
-  emptyEmoji: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: T.colors.textDisabled,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: T.colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-    paddingHorizontal: 20,
-  },
+  container: { flex: 1, backgroundColor: E.paper },
+  centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, color: E.muted, fontSize: 13 },
+  listContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32, flexGrow: 1, width: '100%', maxWidth: 1080, alignSelf: 'center' },
+
+  intro: { marginBottom: 18 },
+  kicker: { fontSize: 9, letterSpacing: 1.6, color: E.muted, marginBottom: 9 },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  pageTitle: { fontSize: 27, lineHeight: 34, fontWeight: '600', letterSpacing: -0.7, color: E.ink },
+  headerCount: { fontSize: 13, color: E.muted },
+  pageSubtitle: { fontSize: 13, lineHeight: 20, color: E.muted, marginTop: 6 },
+
+  search: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: E.surface, borderWidth: 1, borderColor: E.line, borderRadius: 10, paddingLeft: 14, marginBottom: 16 },
+  searchInput: { flex: 1, minWidth: 0, paddingVertical: 13, paddingRight: 12, fontSize: 14, color: E.ink, ...(({ outlineStyle: 'none' } as any)) },
+  clearSearch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+
+  filtersContainer: { marginBottom: 6 },
+  chipsWrapper: { marginBottom: 12 },
+  chipsLabel: { fontSize: 9, letterSpacing: 1.4, fontWeight: '600', color: E.muted, textTransform: 'uppercase', marginBottom: 8 },
+  chipsContent: { gap: 8 },
+  chip: { backgroundColor: E.surface, paddingHorizontal: 14, minHeight: 36, justifyContent: 'center', borderRadius: 9, borderWidth: 1, borderColor: E.line, maxWidth: 260 },
+  chipActive: { backgroundColor: E.soft, borderColor: E.blue },
+  chipText: { color: E.ink, fontSize: 13, fontWeight: '500' },
+  chipTextActive: { color: E.blue, fontWeight: '600' },
+
+  taskCard: { backgroundColor: E.surface, borderRadius: 14, padding: 17, marginBottom: 12, borderWidth: 1, borderColor: E.line },
+  taskTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  taskIcon: { width: 42, height: 42, borderRadius: 11, backgroundColor: E.soft, alignItems: 'center', justifyContent: 'center' },
+  taskBody: { flex: 1, minWidth: 0 },
+  taskName: { fontSize: 15, fontWeight: '600', color: E.ink, lineHeight: 21 },
+  contractorText: { fontSize: 12, color: E.muted, marginTop: 4 },
+
+  pillsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 99 },
+  pillDot: { width: 6, height: 6, borderRadius: 3 },
+  pillText: { fontSize: 11, fontWeight: '600' },
+
+  volumeBox: { marginTop: 14, padding: 14, borderRadius: 12, backgroundColor: E.paper, borderWidth: 1, borderColor: '#E6EAF0' },
+  volumeHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  volumeKicker: { fontSize: 9, letterSpacing: 1.4, fontWeight: '600', color: E.muted },
+  volumePlan: { fontSize: 11, color: E.muted },
+  volumeValue: { fontSize: 25, fontWeight: '500', letterSpacing: -1, color: E.ink, marginTop: 6, marginBottom: 10 },
+  volumeUnit: { fontSize: 13, fontWeight: '500', letterSpacing: 0, color: E.muted },
+
+  taskFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: E.line },
+  taskId: { fontSize: 11, color: E.muted },
+  reportBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 42, paddingHorizontal: 16, borderRadius: 9, backgroundColor: E.blue },
+  reportBtnMuted: { backgroundColor: E.soft },
+  reportBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 });

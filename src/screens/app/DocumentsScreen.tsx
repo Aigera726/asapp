@@ -1,3 +1,4 @@
+import { ScreenHeader } from '@/components/ui';
 import React, { useState } from 'react';
 import {
   View,
@@ -213,10 +214,7 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Документы</Text>
-        <Text style={styles.headerSubtitle}>Согласование и подписание файлов</Text>
-      </View>
+      <ScreenHeader title="Документы" subtitle="Согласование и подписание файлов" onBack={() => navigation.goBack()} />
 
       <FlatList
         data={documents}
@@ -313,10 +311,10 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { width: '100%', maxWidth: 1200, alignSelf: 'center',
     flex: 1,
     backgroundColor: T.colors.canvas,
-    paddingTop: 56,
+
   },
   header: {
     paddingHorizontal: 20,

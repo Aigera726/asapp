@@ -9,6 +9,7 @@ import BpmTask from '@/database/models/BpmTask';
 import DocumentModel from '@/database/models/Document';
 import PurchaseRequest from '@/database/models/PurchaseRequest';
 import { T } from '@/theme';
+import { DEMO_BUILD } from '@/lib/demoBuild';
 import { Icon, IconName } from '@/components/Icon';
 import { ScreenHeader } from '@/components/ui';
 import { useAuthStore } from '@/store/authStore';
@@ -58,7 +59,7 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
   const [demoBusy, setDemoBusy] = useState(false);
 
   useEffect(() => {
-    if (__DEV__) hasDemoData().then(setDemoOn);
+    if (DEMO_BUILD) hasDemoData().then(setDemoOn);
   }, []);
 
   const toggleDemo = async () => {
@@ -195,7 +196,7 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
           </View>
         ))}
 
-        {__DEV__ ? (
+        {DEMO_BUILD ? (
           <View style={styles.group}>
             <Text style={styles.groupTitle}>Разработка</Text>
             <View style={styles.groupBody}>
@@ -250,7 +251,7 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
 export default enhance(HubScreen);
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.colors.canvas },
+  container: { width: '100%', maxWidth: 1200, alignSelf: 'center', flex: 1, backgroundColor: T.colors.canvas },
   content: { paddingHorizontal: T.spacing.xl, paddingBottom: T.spacing.xxxl },
   group: { marginBottom: T.spacing.xxl },
   groupTitle: {

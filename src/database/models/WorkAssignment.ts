@@ -19,9 +19,15 @@ export default class WorkAssignment extends Model {
   @field('resource_id') resourceId: string | null;
 
   @field('contract_id') contractId: string;
+  @field('is_available') isAvailable: boolean;
   @field('assignment_type') assignmentType: 'FIXED' | 'OPEN';
   @field('assigned_quantity') assignedQuantity: number | null;
   @field('status') status: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'SUSPENDED';
+  // Объёмы ERP: по работе от всех исполнителей и по этому назначению договора.
+  @field('work_confirmed_volume') workConfirmedVolume: number | null;
+  @field('work_pending_volume') workPendingVolume: number | null;
+  @field('assignment_confirmed_volume') assignmentConfirmedVolume: number | null;
+  @field('assignment_pending_volume') assignmentPendingVolume: number | null;
   @readonly @date('updated_at') updatedAt: Date;
 
   // Relations

@@ -1,32 +1,35 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, SafeAreaView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useConfigStore } from '@/store/configStore';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
 import { T } from '@/theme';
+import { A } from '@/components/AuthLayout';
+import { notify } from '@/lib/alert';
 
 export default function ConnectionSetupScreen() {
-  const { supabaseUrl, supabaseKey, saveConfig, resetConfig } = useConfigStore();
+  const { supabaseUrl, supabaseKey, apiUrl, saveConfig, resetConfig } = useConfigStore();
   const navigation = useNavigation();
   const [url, setUrl] = useState(supabaseUrl || '');
   const [key, setKey] = useState(supabaseKey || '');
+  const [api, setApi] = useState(apiUrl || '');
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
   const handleSave = async () => {
     if (!url || !key) {
-      Alert.alert('Ошибка', 'Заполните оба поля');
+      notify('Ошибка', 'Заполните оба поля');
       return;
     }
-    await saveConfig(url, key);
-    Alert.alert('Успешно', 'Настройки сохранены. Выйдите из аккаунта (если были авторизованы) для вступления изменений в силу.');
+    await saveConfig(url, key, undefined, api);
+    notify('Успешно', 'Настройки сохранены. Выйдите из аккаунта (если были авторизованы) для вступления изменений в силу.');
     navigation.goBack();
   };
 
   const handleReset = async () => {
     await resetConfig();
-    Alert.alert('Сброс', 'Восстановлены стандартные настройки');
+    notify('Сброс', 'Восстановлены стандартные настройки');
     navigation.goBack();
   };
 
@@ -36,13 +39,16 @@ export default function ConnectionSetupScreen() {
       if (parsed.url && parsed.key) {
         setUrl(parsed.url);
         setKey(parsed.key);
+        // apiUrl в QR необязателен: без него регистрация пойдёт на адрес из
+        // сборки, как было до появления поля.
+        if (parsed.apiUrl) setApi(parsed.apiUrl);
         setShowScanner(false);
-        Alert.alert('QR Считан', 'Настройки заполнены');
+        notify('QR Считан', 'Настройки заполнены');
       } else {
-        Alert.alert('Ошибка', 'Неверный формат QR-кода');
+        notify('Ошибка', 'Неверный формат QR-кода');
       }
     } catch (e) {
-      Alert.alert('Ошибка', 'QR-код должен содержать JSON с полями url и key');
+      notify('Ошибка', 'QR-код должен содержать JSON с полями url и key');
     }
   };
 
@@ -88,7 +94,7 @@ export default function ConnectionSetupScreen() {
         <View style={{ width: 70 }} />
       </View>
 
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>SUPABASE URL</Text>
         <TextInput
           style={styles.input}
@@ -109,6 +115,22 @@ export default function ConnectionSetupScreen() {
           numberOfLines={3}
         />
 
+        <Text style={styles.label}>АДРЕС БЭКЕНДА (РЕГИСТРАЦИЯ)</Text>
+        <TextInput
+          style={styles.input}
+          value={api}
+          onChangeText={setApi}
+          placeholder="http://хост:9000"
+          placeholderTextColor={T.colors.textDisabled}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <Text style={styles.fieldHint}>
+          Сюда уходит регистрация новых пользователей. Если оставить пусто,
+          используется адрес из сборки — но тогда аккаунт создастся на другом
+          сервере, чем указанный выше, и войти под ним не получится.
+        </Text>
+
         <TouchableOpacity style={styles.qrButton} onPress={() => setShowScanner(true)}>
           <Text style={styles.qrButtonText}>Сканировать QR-код</Text>
         </TouchableOpacity>
@@ -122,23 +144,24 @@ export default function ConnectionSetupScreen() {
         <TouchableOpacity style={styles.secondaryButton} onPress={handleReset}>
           <Text style={styles.secondaryButtonText}>Сбросить по умолчанию</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.colors.canvas },
+  container: { flex: 1, backgroundColor: A.paper },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: T.colors.surface },
   backText: { color: T.colors.textMuted, fontSize: 16 },
   headerTitle: { color: T.colors.textPrimary, fontSize: 18, fontWeight: '700' },
-  content: { padding: 20, flex: 1 },
+  content: { padding: 24, flexGrow: 1, width: '100%', maxWidth: 560, alignSelf: 'center' },
   label: { color: T.colors.textSecondary, fontSize: 12, fontWeight: '700', marginBottom: 8, marginTop: 16 },
   input: { backgroundColor: T.colors.surface, color: T.colors.textPrimary, padding: 16, borderRadius: 12, fontSize: 15, borderWidth: 1, borderColor: T.colors.border },
-  qrButton: { backgroundColor: T.colors.primarySoft, padding: 16, borderRadius: 12, marginTop: 16, alignItems: 'center' },
-  qrButtonText: { color: T.colors.primary, fontSize: 16, fontWeight: '600' },
+  fieldHint: { color: T.colors.textMuted, fontSize: 12, lineHeight: 17, marginTop: 8 },
+  qrButton: { backgroundColor: A.soft, padding: 16, borderRadius: 12, marginTop: 16, alignItems: 'center' },
+  qrButtonText: { color: A.blue, fontSize: 16, fontWeight: '600' },
   spacer: { flex: 1 },
-  primaryButton: { backgroundColor: T.colors.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
+  primaryButton: { backgroundColor: A.blue, padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
   primaryButtonText: { color: T.colors.textOnBrand, fontSize: 16, fontWeight: '700' },
   secondaryButton: { padding: 16, borderRadius: 12, alignItems: 'center' },
   secondaryButtonText: { color: T.colors.danger, fontSize: 16, fontWeight: '600' },

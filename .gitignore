@@ -42,3 +42,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Сборки APK: больше лимита GitHub (100 МБ), раздаются отдельно
+*.apk

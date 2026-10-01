@@ -30,6 +30,7 @@ import MaterialMovement from './MaterialMovement';
 import Inspection from './Inspection';
 import Prescription from './Prescription';
 import Deviation from './Deviation';
+import WorkReport from './WorkReport';
 
 export const modelClasses = [
   Project,
@@ -57,4 +58,5 @@ export const modelClasses = [
   Inspection,
   Prescription,
   Deviation,
+  WorkReport,
 ];

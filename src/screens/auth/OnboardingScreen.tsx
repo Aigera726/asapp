@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,7 @@ import { useAuthStore } from '@/store/authStore';
 import { AppStackParamList } from '@/navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T } from '@/theme';
+import { notify } from '@/lib/alert';
 import { Icon } from '@/components/Icon';
 
 type Props = {
@@ -40,6 +40,7 @@ export default function OnboardingScreen({ navigation }: Props) {
     linkStatus,
     linkComment,
     contractorName,
+    profileError,
   } = useAuthStore();
   const insets = useSafeAreaInsets();
 
@@ -49,13 +50,13 @@ export default function OnboardingScreen({ navigation }: Props) {
 
   const handleLink = async () => {
     if (!contractorId.trim()) {
-      Alert.alert('Ошибка', 'Введите ID контрагента из договора');
+      notify('Ошибка', 'Введите ID контрагента из договора');
       return;
     }
 
     const { error } = await linkToContractor(contractorId, bin);
     if (error) {
-      Alert.alert('Не удалось привязать', error);
+      notify('Не удалось привязать', error);
     }
     // На успехе навигацию не трогаем: пока нужен онбординг, корневой
     // навигатор содержит единственный экран, и replace('MainTabs') просто
@@ -65,7 +66,9 @@ export default function OnboardingScreen({ navigation }: Props) {
   const handleCheck = async () => {
     setChecking(true);
     try {
-      await fetchProfile();
+      // force: пользователь нажал «проверить» именно для того, чтобы узнать
+      // текущее состояние, — ответ уже идущего запроса его не устроит.
+      await fetchProfile({ force: true });
     } finally {
       setChecking(false);
     }
@@ -125,6 +128,19 @@ export default function OnboardingScreen({ navigation }: Props) {
           Чтобы получить работы своих договоров, привяжите аккаунт к организации-подрядчику.
           Заявку подтверждает администратор.
         </Text>
+
+        {profileError ? (
+          <View style={styles.loadErrorCard}>
+            <Icon name="alert-circle-outline" size={18} color={T.colors.danger} />
+            <Text style={styles.rejectedText}>
+              Не удалось прочитать профиль с сервера: {profileError}
+              {'\n'}
+              Экран привязки показан потому, что роль и организация не
+              загрузились, — это может быть не вашей ошибкой. Проверьте связь и
+              нажмите «Проверить статус» или обратитесь к администратору.
+            </Text>
+          </View>
+        ) : null}
 
         {linkStatus === 'REJECTED' ? (
           <View style={styles.rejectedCard}>
@@ -191,6 +207,21 @@ export default function OnboardingScreen({ navigation }: Props) {
               <Text style={styles.mainBtnText}>Привязать</Text>
             )}
           </TouchableOpacity>
+
+          {profileError ? (
+            <TouchableOpacity
+              style={[styles.retryBtn, checking && styles.btnDisabled]}
+              onPress={handleCheck}
+              disabled={checking}
+              activeOpacity={0.8}
+            >
+              {checking ? (
+                <ActivityIndicator color={T.colors.primary} />
+              ) : (
+                <Text style={styles.retryBtnText}>Проверить статус</Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <Text style={styles.footnote}>
@@ -239,6 +270,26 @@ const styles = StyleSheet.create({
   },
   statusBtn: {
     alignSelf: 'stretch',
+  },
+  loadErrorCard: {
+    flexDirection: 'row',
+    gap: 12,
+    backgroundColor: T.colors.dangerSoft,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 20,
+  },
+  retryBtn: {
+    marginTop: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    backgroundColor: T.colors.primarySoft,
+  },
+  retryBtnText: {
+    color: T.colors.primary,
+    fontSize: 15,
+    fontWeight: '700',
   },
   rejectedCard: {
     flexDirection: 'row',

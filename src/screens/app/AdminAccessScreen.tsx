@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/authStore';
 import { T } from '@/theme';
 import { Icon } from '@/components/Icon';
 import { ScreenHeader, Card, Badge, EmptyState, Segmented } from '@/components/ui';
@@ -86,7 +87,16 @@ export default function AdminAccessScreen() {
       Alert.alert('Ошибка', error.message);
       return;
     }
-    setLinks((data as LinkRow[]) ?? []);
+    const rows = (data as LinkRow[]) ?? [];
+    setLinks(rows);
+
+    // Бейдж на вкладке и баннер на дашборде считают ожидающие заявки. Здесь
+    // список уже полный, поэтому обновляем счётчик из него, не делая второй
+    // запрос: иначе после подтверждения бейдж висел бы до перезахода.
+    // loadLinks вызывается и при открытии экрана, и после каждого решения.
+    useAuthStore.setState({
+      pendingLinkCount: rows.filter((r) => r.status === 'PENDING').length,
+    });
   }, []);
 
   const loadUsers = useCallback(async (search: string) => {
@@ -367,7 +377,7 @@ export default function AdminAccessScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.colors.canvas },
+  container: { width: '100%', maxWidth: 1200, alignSelf: 'center', flex: 1, backgroundColor: T.colors.canvas },
   tabs: { paddingHorizontal: T.spacing.lg, paddingBottom: T.spacing.sm },
   list: { padding: T.spacing.lg, paddingTop: 0 },
   rowTop: {

@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 10,
+  version: 13,
   tables: [
     // ... (existing tables)
     tableSchema({
@@ -26,6 +26,9 @@ export const schema = appSchema({
     tableSchema({
       name: 'estimate_resources',
       columns: [
+        { name: 'estimate_quantity', type: 'number', isOptional: true },
+        { name: 'resource_kind', type: 'string', isOptional: true },
+        { name: 'in_actual_estimate', type: 'boolean' },
         { name: 'name', type: 'string' },
         { name: 'unit', type: 'string' },
         { name: 'type_id', type: 'number', isOptional: true },
@@ -82,6 +85,7 @@ export const schema = appSchema({
     tableSchema({
       name: 'work_assignments',
       columns: [
+        { name: 'is_available', type: 'boolean', isIndexed: true },
         { name: 'estimate_work_id', type: 'string', isOptional: true, isIndexed: true },
         { name: 'wbs_item_id', type: 'string', isOptional: true, isIndexed: true },
         { name: 'resource_id', type: 'string', isOptional: true, isIndexed: true },
@@ -89,6 +93,33 @@ export const schema = appSchema({
         { name: 'assignment_type', type: 'string' }, // 'FIXED' | 'OPEN'
         { name: 'assigned_quantity', type: 'number', isOptional: true },
         { name: 'status', type: 'string' }, // 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'SUSPENDED'
+        // Объёмы ERP по работе (от всех исполнителей) и по этому назначению.
+        { name: 'work_confirmed_volume', type: 'number', isOptional: true },
+        { name: 'work_pending_volume', type: 'number', isOptional: true },
+        { name: 'assignment_confirmed_volume', type: 'number', isOptional: true },
+        { name: 'assignment_pending_volume', type: 'number', isOptional: true },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+
+    // История отправленных объёмов по работе (оперфакт ERP, только чтение)
+    tableSchema({
+      name: 'work_reports',
+      columns: [
+        { name: 'mobile_report_id', type: 'string', isOptional: true, isIndexed: true },
+        { name: 'assignment_id', type: 'string', isOptional: true, isIndexed: true },
+        { name: 'estimate_work_id', type: 'string', isOptional: true, isIndexed: true },
+        { name: 'reported_volume', type: 'number' },
+        { name: 'confirmed_volume', type: 'number', isOptional: true },
+        { name: 'unit', type: 'string', isOptional: true },
+        // pending_approval | approved | rejected | matching_error
+        { name: 'status', type: 'string' },
+        { name: 'executor_name', type: 'string', isOptional: true },
+        { name: 'reported_at', type: 'number', isOptional: true },
+        { name: 'decided_at', type: 'number', isOptional: true },
+        { name: 'decided_by_name', type: 'string', isOptional: true },
+        { name: 'rejection_reason', type: 'string', isOptional: true },
+        { name: 'matching_error_details', type: 'string', isOptional: true },
         { name: 'updated_at', type: 'number' },
       ],
     }),
@@ -189,6 +220,7 @@ export const schema = appSchema({
     tableSchema({
       name: 'reports',
       columns: [
+        { name: 'resource_usage', type: 'string', isOptional: true },
         { name: 'assignment_id', type: 'string', isIndexed: true },
         { name: 'reported_by', type: 'string', isOptional: true },
         { name: 'reported_quantity', type: 'number' },
@@ -198,6 +230,7 @@ export const schema = appSchema({
         { name: 'geo_lon', type: 'number', isOptional: true },
         { name: 'photo_uri', type: 'string', isOptional: true }, // локальный путь к фото
         { name: 'sync_status', type: 'string' }, // 'draft' | 'pending_sync' | 'synced'
+        { name: 'created_at', type: 'number' },
         { name: 'updated_at', type: 'number' },
       ],
     }),

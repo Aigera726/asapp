@@ -2,8 +2,11 @@ import { synchronize } from '@nozbe/watermelondb/sync';
 import { Q } from '@nozbe/watermelondb';
 import { File } from 'expo-file-system';
 import { database } from './index';
+import WorkAssignment from './models/WorkAssignment';
+import { removeRetiredWriteOffs, RETIRED_WRITE_OFF_IDS } from '@/lib/legacyWriteOffCleanup';
 import { supabase } from '@/lib/supabase';
 import { isDemoId, referencesDemoData } from '@/lib/demoData';
+import { actualValue, isEligibleAssignment, readAllView, unavailableAssignments } from './assignmentPolicy';
 
 /**
  * Синхронизация WatermelonDB ↔ Supabase УСП.
@@ -40,6 +43,8 @@ const now = () => Date.now();
 type FanOut = {
   /** Представление в схеме mobile. */
   view: string;
+  /** Витрины из поздних миграций: отсутствие — предупреждение, а не отказ. */
+  optional?: boolean;
   /** Локальные таблицы, которые оно наполняет. */
   targets: string[];
   /**
@@ -103,10 +108,12 @@ const FAN_OUTS: FanOut[] = [
         ? [
             {
               id: r.est_doc_work_id,
-              version_id: '',
+              version_id: r.estimate_doc_id ?? '',
               name: r.work_name ?? 'Без названия',
               unit: r.work_unit ?? '',
-              total_quantity: Number(r.estimate_volume ?? r.total_quantity ?? 0),
+              // План — объём фактической сметы. Не fact_volume: после первого
+              // решения ERP там сумма подтверждённого, и план «сжимался» до неё.
+              total_quantity: Number(r.estimate_volume ?? 0),
               ext_id: null,
               updated_at: now(),
             },
@@ -116,6 +123,7 @@ const FAN_OUTS: FanOut[] = [
         {
           id: r.id,
           estimate_work_id: r.est_doc_work_id ?? null,
+          is_available: true,
           // Пункт ГПР в договорах УСП не фигурирует: работа договора
           // ссылается на строку сметы, а не на график.
           wbs_item_id: null,
@@ -124,6 +132,11 @@ const FAN_OUTS: FanOut[] = [
           assignment_type: r.assignment_type ?? 'FIXED',
           assigned_quantity: Number(r.assigned_quantity ?? r.total_quantity ?? 0),
           status: r.status ?? 'PLANNED',
+          // Миграция 16: без неё колонок нет, остаток считается от плана.
+          work_confirmed_volume: numOrNull(r.work_confirmed_volume),
+          work_pending_volume: numOrNull(r.work_pending_volume),
+          assignment_confirmed_volume: numOrNull(r.assignment_confirmed_volume),
+          assignment_pending_volume: numOrNull(r.assignment_pending_volume),
           updated_at: r.created_at ? new Date(r.created_at).getTime() : now(),
         },
       ],
@@ -141,14 +154,48 @@ const FAN_OUTS: FanOut[] = [
           // Первое читаемее, второе всегда есть.
           unit: r.unit_name ?? r.unit_code ?? '',
           type_id: null,
-          norm: r.norm === null || r.norm === undefined ? null : Number(r.norm),
+          norm: actualValue(r.fact_norm, r.norm),
+          estimate_quantity: actualValue(r.fact_quantity, r.quantity),
+          resource_kind: r.resource_kind ?? null,
+          in_actual_estimate: true,
           estimate_work_id: r.work_id ?? null,
           updated_at: now(),
         },
       ],
     }),
   },
+  {
+    // История отправленных объёмов по работам организации (миграция 16).
+    view: 'v_work_reports',
+    targets: ['work_reports'],
+    optional: true,
+    split: (r) => ({
+      work_reports: [
+        {
+          id: r.id,
+          mobile_report_id: r.mobile_report_id ?? null,
+          assignment_id: r.assignment_id ?? null,
+          estimate_work_id: r.doc_work_id ?? null,
+          reported_volume: Number(r.reported_volume ?? 0),
+          confirmed_volume: numOrNull(r.confirmed_volume),
+          unit: r.unit ?? null,
+          status: r.status ?? 'pending_approval',
+          executor_name: r.executor_name ?? null,
+          reported_at: r.reported_at ?? null,
+          decided_at: r.decided_at ?? null,
+          decided_by_name: r.decided_by_name ?? null,
+          rejection_reason: r.rejection_reason ?? null,
+          matching_error_details: r.matching_error_details ?? null,
+          updated_at: now(),
+        },
+      ],
+    }),
+  },
 ];
+
+function numOrNull(value: unknown): number | null {
+  return value == null ? null : Number(value);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. СОБСТВЕННЫЕ ТАБЛИЦЫ МОБИЛКИ
@@ -186,6 +233,13 @@ const MOBILE_TABLES: MobileTable[] = [
 ];
 
 /**
+ * Читаются целиком постранично; удалённое на сервере убирается из кеша.
+ * Иначе удалённый в ERP отчёт оставался бы на телефоне и занимал объём
+ * работы как «на подтверждении».
+ */
+const SNAPSHOT_TABLES = new Set(['material_movements', 'reports']);
+
+/**
  * Таблицы, которые мобилка отправляет на сервер. Справочные сюда не входят
  * принципиально: сметы и договоры ведёт УСП, а витрины доступны только на
  * чтение — попытка записи в них завершилась бы ошибкой представления.
@@ -212,6 +266,12 @@ function isMissingTable(error: { code?: string; message?: string } | null): bool
  */
 let inFlight: Promise<void> | null = null;
 
+/** A saved report must not join a sync whose push snapshot predates it. */
+export async function syncSavedReport(): Promise<void> {
+  if (inFlight) await inFlight.catch(() => undefined);
+  await syncDatabase();
+}
+
 export function syncDatabase(forceFullSync: boolean = false): Promise<void> {
   if (inFlight) {
     console.info('[Sync] Синхронизация уже идёт — присоединяемся к текущему прогону');
@@ -226,6 +286,7 @@ export function syncDatabase(forceFullSync: boolean = false): Promise<void> {
 }
 
 async function runSync(_forceFullSync: boolean): Promise<void> {
+  await removeRetiredWriteOffs();
   await synchronize({
     database,
 
@@ -250,12 +311,16 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
       // Инкремента нет намеренно: у представлений УСП нет надёжного
       // updated_at, а объёмы после фильтрации по договорам — сотни строк.
       const [viewRes, tableRes] = await Promise.all([
-        Promise.all(FAN_OUTS.map((f) => client.from(f.view).select('*').limit(20000))),
-        Promise.all(MOBILE_TABLES.map((t) => client.from(t.table).select('*').limit(t.limit))),
+        Promise.all(FAN_OUTS.map((f) => readAllView(client, f.view))),
+        Promise.all(MOBILE_TABLES.map((t) => SNAPSHOT_TABLES.has(t.table)
+          ? readAllView(client, t.table)
+          : client.from(t.table).select('*').limit(t.limit))),
       ]);
 
       const errors: string[] = [];
       const skipped: string[] = [];
+      const eligibleIds = new Set((viewRes[1].data ?? [])
+        .filter(isEligibleAssignment).map((r: any) => r.id));
 
       // Пустые наборы для всех локальных таблиц: Watermelon требует ключ на
       // каждую коллекцию, иначе падает на неполном наборе изменений.
@@ -269,7 +334,7 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
       viewRes.forEach((res, i) => {
         const f = FAN_OUTS[i];
         if (res.error) {
-          if (isMissingTable(res.error)) {
+          if (f.optional && isMissingTable(res.error)) {
             skipped.push(f.view);
             return;
           }
@@ -277,6 +342,14 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
           return;
         }
         for (const raw of res.data ?? []) {
+          if (f.view === 'v_assignment_resources' && !eligibleIds.has(raw.assignment_id)) continue;
+          if (f.view === 'v_assignments') {
+            if (!('estimate_type' in raw)) {
+              errors.push('На сервере требуется миграция 11: согласованные договоры и фактическая смета.');
+              break;
+            }
+            if (!isEligibleAssignment(raw)) continue;
+          }
           const parts = f.split(raw);
           for (const [table, list] of Object.entries(parts)) {
             rows[table].push(...list);
@@ -294,7 +367,8 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
           errors.push(`${t.table}: ${res.error.message}`);
           return;
         }
-        rows[t.table].push(...(res.data ?? []));
+        rows[t.table].push(...(res.data ?? []).filter((r: any) =>
+          t.table !== 'material_movements' || !RETIRED_WRITE_OFF_IDS.has(r.id)));
       });
 
       if (skipped.length > 0) {
@@ -307,9 +381,28 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
         throw new Error(`Ошибка загрузки данных: \n${errors.join('\n')}`);
       }
 
+      // Витрины — полный снимок. Пропавшие задания не удаляем: на них
+      // могут ссылаться история и ещё не отправленные отчёты.
+      const existing = await database.get('work_assignments').query().fetch();
+      rows.work_assignments.push(...unavailableAssignments(
+        existing.map((r) => r._raw), rows.work_assignments
+      ));
+      const resourceIds = new Set(rows.estimate_resources.map((r) => r.id));
+      const oldResources = await database.get('estimate_resources').query().fetch();
+      for (const resource of oldResources) {
+        if (!resourceIds.has(resource.id)) {
+          const { _status, _changed, ...fields } = resource._raw;
+          rows.estimate_resources.push({ ...fields, norm: null, in_actual_estimate: false });
+        }
+      }
+
       const changes: Record<string, { created: any[]; updated: any[]; deleted: string[] }> = {};
       for (const [table, list] of Object.entries(rows)) {
-        changes[table] = await mapToChanges(table, dedupeById(list));
+        // Журнал движений, отчёты и история отправок — полные снимки:
+        // пропавшее на сервере убирается и из кеша.
+        const reconcile = (SNAPSHOT_TABLES.has(table) && !skipped.includes(table))
+          || (table === 'work_reports' && !skipped.includes('v_work_reports'));
+        changes[table] = await mapToChanges(table, dedupeById(list), reconcile);
       }
 
       console.log(
@@ -325,7 +418,16 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
     // ─────────────────────────────────────────────────────────────────────
     pushChanges: async ({ changes }) => {
       const client = supabase.schema(MOBILE_SCHEMA);
+      const reportChanges = (changes as any).reports;
+      for (const row of [...(reportChanges?.created ?? []), ...(reportChanges?.updated ?? [])]) {
+        if (isDemoId(row.id) || referencesDemoData(row)) continue;
+        const assignment = await database.get<WorkAssignment>('work_assignments').find(row.assignment_id).catch(() => null);
+        if (!assignment?.isAvailable) {
+          throw new Error(`Отчёт сохранён на устройстве, но задание ${row.assignment_id} больше недоступно. Нужен согласованный договор и фактическая смета.`);
+        }
+      }
 
+      const reportFailures: string[] = [];
       for (const table of PUSH_ORDER) {
         const raw = (changes as any)[table];
         if (!raw) continue;
@@ -338,7 +440,8 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
         // такого задания нет, и push упирался в RLS — «new row violates
         // row-level security policy for table reports» — блокируя отправку
         // всех остальных записей.
-        const sendable = (r: any) => !isDemoId(r.id) && !referencesDemoData(r);
+        const sendable = (r: any) => !isDemoId(r.id) && !referencesDemoData(r)
+          && !(table === 'material_movements' && RETIRED_WRITE_OFF_IDS.has(r.id));
         const created = (raw.created ?? []).filter(sendable);
         const updated = (raw.updated ?? []).filter(sendable);
         const deleted = (raw.deleted ?? []).filter((id: string) => !isDemoId(id));
@@ -360,6 +463,11 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
         const records = [];
         for (const row of all) {
           const { _status, _changed, sync_status, updated_at, ...fields } = row;
+          // Старые отчёты без даты (0): пусть сервер оставит свою, а не получит 1970 год.
+          if (table === 'reports' && !fields.created_at) delete fields.created_at;
+          if (table === 'reports' && typeof fields.resource_usage === 'string') {
+            fields.resource_usage = JSON.parse(fields.resource_usage);
+          }
 
           if (table === 'reports' && fields.photo_uri?.startsWith('file:')) {
             try {
@@ -387,6 +495,17 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
         }
 
         console.info(`[Sync] Отправка ${records.length} записей в ${table}`);
+        if (table === 'reports') {
+          // По одному: ERP может отклонить отчёт сверх остатка объёма, и
+          // такой отчёт не должен задерживать остальные.
+          const failed: string[] = [];
+          for (const record of records) {
+            const { error } = await client.from(table).upsert(record);
+            if (error) failed.push(`${record.reported_quantity}: ${error.message}`);
+          }
+          if (failed.length > 0) reportFailures.push(...failed);
+          continue;
+        }
         const { error } = await client.from(table).upsert(records);
         if (error) {
           if (isMissingTable(error)) {
@@ -398,6 +517,10 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
           }
           throw new Error(`Ошибка отправки ${table}: ${error.message} (${error.hint || ''})`);
         }
+      }
+      // Остальные таблицы уже отправлены; отклонённые отчёты остаются локально.
+      if (reportFailures.length > 0) {
+        throw new Error(`ERP не принял отчётов: ${reportFailures.length}.\n${reportFailures.join('\n')}`);
       }
     },
 
@@ -420,13 +543,16 @@ function dedupeById(list: any[]): any[] {
  * Разделяет пришедшие с сервера строки на created/updated: Watermelon считает
  * диагностической ошибкой попытку «создать» уже существующий id.
  */
-async function mapToChanges(table: string, records: any[] | null) {
-  if (!records || records.length === 0) {
+async function mapToChanges(table: string, records: any[] | null, reconcileDeleted = false) {
+  if ((!records || records.length === 0) && !reconcileDeleted) {
     return { created: [], updated: [], deleted: [] as string[] };
   }
 
-  const mapped = records.map((r) => {
+  const mapped = (records ?? []).map((r) => {
     const row = { ...r };
+    if (table === 'reports' && row.resource_usage != null && typeof row.resource_usage !== 'string') {
+      row.resource_usage = JSON.stringify(row.resource_usage);
+    }
     // Даты Supabase приходят строками, Watermelon хранит числа.
     for (const key in row) {
       const val = row[key];
@@ -455,11 +581,21 @@ async function mapToChanges(table: string, records: any[] | null) {
     throw err;
   }
   const idSet = new Set(existingIds);
+  const incomingIds = new Set(mapped.map((r) => r.id));
+  // Полный снимок журнала убирает удалённые на сервере записи и из кеша.
+  // Новые/изменённые локальные записи ждут отправки и не удаляются.
+  const deleted = reconcileDeleted
+    ? (await database.get(table).query().fetch())
+      .filter((r) => (r._raw._status === 'synced' ||
+        (r._raw._status === 'updated' && r._raw._changed.split(',').every((key) => key === 'sync_status')))
+        && !isDemoId(r.id) && !incomingIds.has(r.id))
+      .map((r) => r.id)
+    : [];
 
   return {
     created: mapped.filter((r) => !idSet.has(r.id)),
     updated: mapped.filter((r) => idSet.has(r.id)),
-    deleted: [] as string[],
+    deleted,
   };
 }
 

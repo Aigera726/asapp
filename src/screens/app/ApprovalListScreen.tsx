@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Q } from '@nozbe/watermelondb';
 import { T } from '@/theme';
 import { Icon } from '@/components/Icon';
+import { ScreenHeader } from '@/components/ui';
 
 const enhance = withObservables([], () => ({
   tasks: database.collections.get<BpmTask>('bpm_tasks').query(
@@ -110,12 +111,13 @@ const ApprovalListScreen = ({ tasks }: Props) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Согласование</Text>
-        {tasks.length > 0 && (
+      <ScreenHeader
+        title="Согласование"
+        onBack={() => navigation.goBack()}
+        right={tasks.length > 0 ? (
           <Text style={styles.headerCount}>{tasks.length}</Text>
-        )}
-      </View>
+        ) : null}
+      />
 
       <FlatList
         data={tasks}
@@ -136,16 +138,7 @@ const ApprovalListScreen = ({ tasks }: Props) => {
 export default enhance(ApprovalListScreen);
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.colors.canvas },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: T.spacing.xl,
-    paddingTop: T.spacing.lg,
-    paddingBottom: T.spacing.md,
-  },
-  title: { ...T.font.h1, color: T.colors.textPrimary },
+  container: { width: '100%', maxWidth: 1200, alignSelf: 'center', flex: 1, backgroundColor: T.colors.canvas },
   headerCount: {
     ...T.font.caption,
     color: T.colors.accent,

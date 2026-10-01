@@ -99,6 +99,7 @@ export async function seedDemoData(): Promise<void> {
     });
 
     await create('work_assignments', (r) => {
+      r.isAvailable = true;
       r.contractId = contract.id;
       r.resourceId = resource.id;
       r.assignmentType = 'FIXED';
@@ -107,6 +108,7 @@ export async function seedDemoData(): Promise<void> {
     });
 
     await create('work_assignments', (r) => {
+      r.isAvailable = true;
       r.contractId = contract.id;
       r.assignmentType = 'OPEN';
       r.assignedQuantity = 1200;
@@ -132,10 +134,14 @@ export async function seedDemoData(): Promise<void> {
         r.name = name;
         r.unit = unit;
         r.norm = norm;
+        r.estimateQuantity = norm * 420;
+        r.resourceKind = 'MATERIAL';
+        r.inActualEstimate = true;
       });
     }
 
     await create('work_assignments', (r) => {
+      r.isAvailable = true;
       r.contractId = contract.id;
       r.estimateWorkId = work.id;
       r.assignmentType = 'FIXED';

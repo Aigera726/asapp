@@ -3,9 +3,37 @@
   "configurations": [
     {
       "name": "expo-web",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start", "--web", "--port", "8081"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "node_modules/expo/bin/cli",
+        "start",
+        "--web",
+        "--port",
+        "8081"
+      ],
       "port": 8081
+    },
+    {
+      "name": "expo-tunnel",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "node_modules/expo/bin/cli",
+        "start",
+        "--tunnel",
+        "--port",
+        "8081"
+      ],
+      "port": 8081
+    },
+    {
+      "name": "demo-web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/serve-static.js",
+        "8090",
+        "dist"
+      ],
+      "port": 8090
     }
   ]
 }

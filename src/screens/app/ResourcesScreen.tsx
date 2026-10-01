@@ -1,8 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { withObservables } from '@nozbe/watermelondb/react';
 import { database } from '@/database';
+import Project from '@/database/models/Project';
+import ConstructionObject from '@/database/models/ConstructionObject';
+import EstimateResource from '@/database/models/EstimateResource';
+import EstimateWork from '@/database/models/EstimateWork';
+import { materialMovementKey } from '@/lib/materialContext';
+import { removeRetiredWriteOffs, RETIRED_WRITE_OFF_IDS } from '@/lib/legacyWriteOffCleanup';
 import Asset from '@/database/models/Asset';
 import MaterialMovement from '@/database/models/MaterialMovement';
 import { T } from '@/theme';
@@ -23,11 +29,14 @@ import {
   label,
   toneOf,
   formatQty,
-  materialBalanceKey,
 } from '@/lib/domain';
 import { formatSmartDate } from '@/lib/formatDate';
 
 const enhance = withObservables([], () => ({
+  projects: database.get<Project>('projects').query(),
+  objects: database.get<ConstructionObject>('construction_objects').query(),
+  resources: database.get<EstimateResource>('estimate_resources').query(),
+  works: database.get<EstimateWork>('estimate_works').query(),
   assets: database.collections.get<Asset>('assets').query(),
   movements: database.collections.get<MaterialMovement>('material_movements').query(),
 }));
@@ -35,6 +44,10 @@ const enhance = withObservables([], () => ({
 type Tab = 'MATERIALS' | 'MACHINERY' | 'EQUIPMENT' | 'TOOL';
 
 interface Props {
+  projects: Project[];
+  objects: ConstructionObject[];
+  resources: EstimateResource[];
+  works: EstimateWork[];
   assets: Asset[];
   movements: MaterialMovement[];
 }
@@ -42,6 +55,9 @@ interface Props {
 /** Остаток материала, посчитанный по журналу движений. */
 type Balance = {
   key: string;
+  projectId: string;
+  context: string;
+  workName: string;
   name: string;
   unit: string | null;
   quantity: number;
@@ -49,8 +65,14 @@ type Balance = {
   movements: number;
 };
 
-function ResourcesScreen({ assets, movements }: Props) {
+function ResourcesScreen({ assets, movements, projects, objects, resources, works }: Props) {
   const navigation = useNavigation<any>();
+  useEffect(() => { removeRetiredWriteOffs().catch((e) => console.error('[Cleanup]', e)); }, []);
+  const contextFor = (projectId: string | null) => {
+    const object = projects.find((p) => p.id === projectId);
+    const project = objects.find((o) => o.id === object?.objectId);
+    return 'Проект: ' + (project?.name ?? 'не указан') + '\nОбъект: ' + (object?.name ?? 'не указан');
+  };
   const [tab, setTab] = useState<Tab>('MATERIALS');
 
   /**
@@ -61,7 +83,8 @@ function ResourcesScreen({ assets, movements }: Props) {
   const balances = useMemo<Balance[]>(() => {
     const acc = new Map<string, Balance>();
     for (const m of movements) {
-      const key = materialBalanceKey(m.materialName);
+      if (RETIRED_WRITE_OFF_IDS.has(m.id)) continue;
+      const key = materialMovementKey(m);
       const sign = MATERIAL_MOVEMENT_SIGN[m.type] ?? 1;
       const prev = acc.get(key);
       if (prev) {
@@ -71,6 +94,9 @@ function ResourcesScreen({ assets, movements }: Props) {
       } else {
         acc.set(key, {
           key,
+          projectId: m.projectId,
+          context: contextFor(m.projectId),
+          workName: works.find((w) => w.id === resources.find((r) => r.id === m.resourceId)?.estimateWorkId)?.name ?? 'не привязана',
           name: m.materialName,
           unit: m.unit,
           quantity: sign * (m.quantity || 0),
@@ -80,7 +106,7 @@ function ResourcesScreen({ assets, movements }: Props) {
       }
     }
     return Array.from(acc.values()).sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime());
-  }, [movements]);
+  }, [movements, projects, objects, resources, works]);
 
   const byKind = useMemo(() => {
     const map: Record<string, Asset[]> = { MACHINERY: [], EQUIPMENT: [], TOOL: [] };
@@ -115,7 +141,7 @@ function ResourcesScreen({ assets, movements }: Props) {
             balances.length > 0 ? (
               <View style={styles.statsRow}>
                 <StatTile value={balances.length} label="Номенклатур" />
-                <StatTile value={movements.length} label="Движений" />
+                <StatTile value={balances.reduce((sum, b) => sum + b.movements, 0)} label="Движений" />
                 <StatTile
                   value={negative}
                   label="В минусе"
@@ -128,7 +154,9 @@ function ResourcesScreen({ assets, movements }: Props) {
             <ListRow
               icon="package-variant-closed"
               title={item.name}
-              subtitle={`${item.movements} движ. · обновлено ${formatSmartDate(item.lastAt)}`}
+              subtitle={item.context}
+              subtitleLines={4}
+              meta={`Работа: ${item.workName}\n${item.movements} движ. · ${formatSmartDate(item.lastAt)}`}
               badge={
                 <View style={styles.qtyBox}>
                   <Text
@@ -145,6 +173,9 @@ function ResourcesScreen({ assets, movements }: Props) {
               onPress={() =>
                 navigation.navigate('MaterialHistory', {
                   balanceKey: item.key,
+                  projectId: item.projectId,
+                  context: item.context,
+                  workName: item.workName,
                   name: item.name,
                   unit: item.unit ?? undefined,
                 })
@@ -203,7 +234,7 @@ function ResourcesScreen({ assets, movements }: Props) {
             subtitle={[item.model, item.inventoryNumber && `инв. ${item.inventoryNumber}`]
               .filter(Boolean)
               .join(' · ')}
-            meta={item.holderName ? `У кого: ${item.holderName}` : 'Не выдано'}
+            meta={`${contextFor(item.projectId)}\n${item.holderName ? `У кого: ${item.holderName}` : 'Не выдано'}`}
             badge={
               <Badge tone={toneOf(ASSET_STATUS_TONES, item.status)}>
                 {label(ASSET_STATUS_LABELS, item.status)}
@@ -238,6 +269,6 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: T.spacing.xl, paddingBottom: 96, flexGrow: 1 },
   statsRow: { flexDirection: 'row', gap: T.spacing.sm, marginBottom: T.spacing.lg },
   qtyBox: { alignItems: 'flex-end', minWidth: 64 },
-  qtyValue: { ...T.font.h3, color: T.colors.primary },
-  qtyUnit: { ...T.font.caption, color: T.colors.textMuted },
+  qtyValue: { fontSize: 18, fontWeight: '500', letterSpacing: -0.5, color: T.colors.primary },
+  qtyUnit: { fontSize: 11, color: T.colors.textMuted, marginTop: 2 },
 });

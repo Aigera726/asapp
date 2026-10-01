@@ -1,3 +1,4 @@
+import { ScreenHeader } from '@/components/ui';
 import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -50,13 +51,7 @@ const AcceptanceListScreen = ({ orders }: Props) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>‹ Назад</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Приемка грузов</Text>
-        <View style={{ width: 60 }} />
-      </View>
+      <ScreenHeader title="Приёмка грузов" subtitle="Входящий контроль поставок" onBack={() => navigation.goBack()} />
 
       <FlatList
         data={orders}
@@ -74,7 +69,7 @@ const AcceptanceListScreen = ({ orders }: Props) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.colors.canvas },
+  container: { width: '100%', maxWidth: 1200, alignSelf: 'center', flex: 1, backgroundColor: T.colors.canvas },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20 },
   backText: { color: T.colors.textSecondary, fontSize: 16 },
   title: { fontSize: 20, fontWeight: '900', color: T.colors.textPrimary },

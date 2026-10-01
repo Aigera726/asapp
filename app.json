@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "AS-APP",
-    "slug": "as-app-mobile",
+    "slug": "binyapp-mobile",
     "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -28,7 +28,6 @@
     },
     "android": {
       "package": "az.asgroup.asapp",
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#00387E"
@@ -47,7 +46,14 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-build-properties",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       [
         "expo-camera",
         {
@@ -62,12 +68,14 @@
           "locationWhenInUsePermission": "Используется для подтверждения нахождения на объекте."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ],
     "extra": {
       "eas": {
         "projectId": "390a73ef-15c7-4906-a939-926a5f8a29f0"
       }
-    }
+    },
+    "owner": "aigera376"
   }
 }

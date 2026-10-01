@@ -1,158 +1,88 @@
+import { ScreenHeader } from '@/components/ui';
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '@/navigation';
 import { T } from '@/theme';
+import { notify } from '@/lib/alert';
 import { getRoleLabel } from '@/lib/roleLabels';
 import { Icon } from '@/components/Icon';
 
 export default function ProfileScreen() {
-  const { user, role, contractorId, signOut } = useAuthStore();
+  const {
+    user,
+    role,
+    firstName,
+    lastName,
+    contractorId,
+    contractorName,
+    contractorBin,
+    signOut,
+    fetchProfile,
+  } = useAuthStore();
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
-  
-  const [loading, setLoading] = useState(true);
+
   const [saving, setSaving] = useState(false);
-  
-  const [fullName, setFullName] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [bin, setBin] = useState('');
 
+  // Профиль и организацию уже загрузил authStore через mobile.my_profile() и
+  // mobile.my_contractor(). Свои запросы этот экран делал в public.profiles и
+  // public.contractors — таких таблиц в базе УСП нет вовсе (PGRST205), и
+  // экран падал на загрузке, а сохранение молча ничего не записывало.
+  const [fullName, setFullName] = useState(
+    [firstName, lastName].filter(Boolean).join(' ')
+  );
+
+  // Стор мог догрузиться после первого рендера — подхватываем, пока поле не
+  // тронули руками, иначе ввод пользователя затёрся бы приходом профиля.
+  const [edited, setEdited] = useState(false);
   useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      // 1. Fetch profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) throw profileError;
-      if (profile) setFullName(profile.full_name || '');
-
-      // 2. Fetch contractor if linked
-      if (contractorId) {
-        // Онбординг пишет БИН в bin_iin, а этот экран читал колонку bin —
-        // поле всегда открывалось пустым, а сохранение затирало его в другой
-        // колонке. Работаем с bin_iin, как и остальное приложение.
-        const { data: contractor, error: contractorError } = await supabase
-          .from('contractors')
-          .select('company_name, bin_iin')
-          .eq('id', contractorId)
-          .single();
-
-        if (contractorError) throw contractorError;
-        if (contractor) {
-          setCompanyName(contractor.company_name || '');
-          setBin(contractor.bin_iin || '');
-        }
-      }
-    } catch (e: any) {
-      console.error('[Profile] Не удалось загрузить профиль:', e);
-      Alert.alert('Ошибка', e?.message ?? 'Не удалось загрузить профиль');
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (!edited) setFullName([firstName, lastName].filter(Boolean).join(' '));
+  }, [firstName, lastName, edited]);
 
   const handleSave = async () => {
     if (!user) return;
 
     const trimmedName = fullName.trim();
     if (!trimmedName) {
-      Alert.alert('Ошибка', 'Укажите ФИО');
-      return;
-    }
-    if (contractorId && bin.trim() && !/^\d{12}$/.test(bin.trim())) {
-      Alert.alert('Ошибка', 'БИН/ИИН должен состоять из 12 цифр');
+      notify('Ошибка', 'Укажите ФИО');
       return;
     }
 
     setSaving(true);
     try {
-      // supabase-js не бросает исключений: без проверки .error экран
-      // показывал «Профиль обновлен» даже когда запись блокировал RLS.
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ full_name: trimmedName })
-        .eq('id', user.id);
-      if (profileError) throw profileError;
+      // Пишем через RPC: erp.profiles закрыта RLS команды УСП, прямой update
+      // не проходит. register_profile делает upsert first_name/last_name и
+      // намеренно не трогает role, поэтому p_role здесь не передаём — иначе
+      // пришлось бы гонять туда-обратно роль УСП, которую этот экран не
+      // вправе менять.
+      const [first, ...rest] = trimmedName.split(/\s+/);
+      const { error } = await supabase.schema('mobile').rpc('register_profile', {
+        p_first_name: first,
+        p_last_name: rest.join(' ') || null,
+      });
+      if (error) throw error;
 
-      if (contractorId) {
-        const { error: contractorError } = await supabase
-          .from('contractors')
-          .update({
-            company_name: companyName.trim(),
-            bin_iin: bin.trim() || null,
-          })
-          .eq('id', contractorId);
-        if (contractorError) throw contractorError;
-      }
-
-      Alert.alert('Успешно', 'Профиль обновлен');
+      // Иначе в сторе осталось бы старое имя до перезахода.
+      await fetchProfile({ force: true });
+      setEdited(false);
+      notify('Успешно', 'Профиль обновлён');
     } catch (e: any) {
-      Alert.alert('Ошибка', e?.message ?? 'Не удалось сохранить профиль');
+      notify('Ошибка', e?.message ?? 'Не удалось сохранить профиль');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Удаление аккаунта',
-      'Вы уверены, что хотите безвозвратно удалить свой аккаунт? Отменить это действие будет невозможно.',
-      [
-        { text: 'Отмена', style: 'cancel' },
-        {
-          text: 'Удалить',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              if (!user) return;
-              const { error } = await supabase
-                .from('profiles')
-                .update({ is_deleted: true })
-                .eq('id', user.id);
-              if (error) throw error;
-              await signOut();
-            } catch (e: any) {
-              Alert.alert('Ошибка', e?.message ?? 'Не удалось удалить аккаунт');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={T.colors.primary} />
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Профиль</Text>
-        </View>
-        <TouchableOpacity onPress={() => navigation.navigate('ConnectionSetup')}>
+      <ScreenHeader title="Профиль" subtitle="Учётная запись и настройки" onBack={() => navigation.goBack()} right={
+        <TouchableOpacity accessibilityLabel="Настройки подключения" onPress={() => navigation.navigate('ConnectionSetup')}>
           <Icon name="cog-outline" size={22} color={T.colors.primary} />
         </TouchableOpacity>
-      </View>
+      } />
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
@@ -160,7 +90,10 @@ export default function ProfileScreen() {
           <TextInput
             style={styles.input}
             value={fullName}
-            onChangeText={setFullName}
+            onChangeText={(t) => {
+              setEdited(true);
+              setFullName(t);
+            }}
             placeholder="Иван Иванов"
             placeholderTextColor={T.colors.textDisabled}
           />
@@ -174,26 +107,27 @@ export default function ProfileScreen() {
         {contractorId && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Реквизиты компании</Text>
-            
+
+            {/* Только чтение — и это не упрощение, а исправление.
+                erp.contractors принадлежит УСП и закрыта RLS: прежний update
+                уходил в несуществующую public.contractors и всегда молча
+                проваливался. Плюс bin_iin служит вторым фактором при привязке
+                к контрагенту (mobile.link_contractor), поэтому менять его из
+                приложения нельзя — иначе проверка обходится изнутри. */}
             <Text style={styles.label}>НАЗВАНИЕ КОМПАНИИ</Text>
-            <TextInput
-              style={styles.input}
-              value={companyName}
-              onChangeText={setCompanyName}
-              placeholder="ТОО Пример"
-              placeholderTextColor={T.colors.textDisabled}
-            />
+            <View style={styles.readonlyInput}>
+              <Text style={styles.readonlyText}>{contractorName ?? '—'}</Text>
+            </View>
 
             <Text style={styles.label}>БИН / ИИН</Text>
-            <TextInput
-              style={styles.input}
-              value={bin}
-              onChangeText={setBin}
-              placeholder="123456789012"
-              placeholderTextColor={T.colors.textDisabled}
-              keyboardType="number-pad"
-              maxLength={12}
-            />
+            <View style={styles.readonlyInput}>
+              <Text style={styles.readonlyText}>{contractorBin || '—'}</Text>
+            </View>
+
+            <Text style={styles.hint}>
+              Реквизиты организации заводятся в УСП вместе с договором.
+              Изменить их из приложения нельзя — обратитесь к ПТО.
+            </Text>
           </View>
         )}
 
@@ -209,11 +143,21 @@ export default function ProfileScreen() {
           <Text style={styles.secondaryButtonText}>Выйти из аккаунта</Text>
         </TouchableOpacity>
 
+        {/* Кнопки удаления здесь больше нет.
+            Она делала update profiles set is_deleted = true по
+            несуществующей public.profiles — то есть всегда падала, но
+            выглядела рабочей. Настоящее удаление аккаунта возможно только
+            под service_role (снять запись из auth.users), из приложения
+            этого сделать нельзя, а серверной заявки на удаление в схеме
+            mobile пока нет. Честная подпись лучше кнопки, которая делает
+            вид, что работает. */}
         <View style={styles.dangerZone}>
-          <Text style={styles.dangerTitle}>Опасная зона</Text>
-          <TouchableOpacity style={styles.dangerButton} onPress={handleDelete}>
-            <Text style={styles.dangerButtonText}>Удалить аккаунт</Text>
-          </TouchableOpacity>
+          <Text style={styles.dangerTitle}>Удаление аккаунта</Text>
+          <Text style={styles.hint}>
+            Аккаунт удаляет администратор — из приложения это сделать нельзя.
+            Обратитесь к нему; доступ к работам можно отозвать сразу, не
+            удаляя учётную запись.
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -221,8 +165,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: T.colors.canvas },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: T.colors.canvas },
+  container: { width: '100%', maxWidth: 1200, alignSelf: 'center', flex: 1, backgroundColor: T.colors.canvas },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: T.colors.surface },
   headerLeft: { flexDirection: 'row', alignItems: 'center' },
   backBtn: { marginRight: 12, padding: 4 },
@@ -241,8 +184,7 @@ const styles = StyleSheet.create({
   disabledBtn: { opacity: 0.7 },
   secondaryButton: { padding: 16, borderRadius: 12, alignItems: 'center', backgroundColor: T.colors.surfaceSunken, borderWidth: 1, borderColor: T.colors.border, marginBottom: 32 },
   secondaryButtonText: { color: T.colors.textSecondary, fontSize: 16, fontWeight: '600' },
+  hint: { color: T.colors.textMuted, fontSize: 12, lineHeight: 17, marginTop: 8 },
   dangerZone: { borderTopWidth: 1, borderTopColor: T.colors.dangerBorder, paddingTop: 24, marginTop: 16 },
   dangerTitle: { color: T.colors.danger, fontSize: 14, fontWeight: '700', marginBottom: 16, alignSelf: 'center' },
-  dangerButton: { padding: 16, borderRadius: 12, alignItems: 'center', backgroundColor: T.colors.dangerSoft, borderWidth: 1, borderColor: T.colors.dangerBorder },
-  dangerButtonText: { color: T.colors.danger, fontSize: 16, fontWeight: '700' },
 });

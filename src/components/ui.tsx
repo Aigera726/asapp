@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, IconName } from './Icon';
 import { T } from '@/theme';
+import { ECO as E } from '@/theme/ecopro';
 import type { Tone } from '@/lib/domain';
 
 /**
@@ -23,6 +24,9 @@ import type { Tone } from '@/lib/domain';
  * пустое состояние собирались заново с чуть разными отступами и радиусами.
  * Новые разделы собираются из этих примитивов, чтобы список предписаний и
  * список техники выглядели как один продукт.
+ *
+ * Оформление — как у ERP EcoPro и главного экрана: белые карточки с тонкой
+ * рамкой без тени, скругление 12–14, заголовки 600, подписи CAPS с трекингом.
  */
 
 // ── Шапка экрана ─────────────────────────────────────────────────────────────
@@ -45,11 +49,13 @@ export function ScreenHeader({
     <View style={[styles.header, { paddingTop: onBack ? T.spacing.md : insets.top + T.spacing.md }]}>
       {onBack ? (
         <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Назад"
           onPress={onBack}
           style={styles.backBtn}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Icon name="chevron-left" size={26} color={T.colors.primary} />
+          <Icon name="chevron-left" size={24} color={E.blue} />
         </TouchableOpacity>
       ) : null}
       <View style={styles.headerTitles}>
@@ -177,6 +183,7 @@ export function ListRow({
   badge,
   onPress,
   danger,
+  subtitleLines = 2,
 }: {
   icon?: IconName;
   iconColor?: string;
@@ -186,13 +193,14 @@ export function ListRow({
   badge?: React.ReactNode;
   onPress?: () => void;
   danger?: boolean;
+  subtitleLines?: number;
 }) {
   return (
     <Card onPress={onPress} style={danger ? styles.cardDanger : undefined}>
       <View style={styles.rowTop}>
         {icon ? (
           <View style={styles.rowIcon}>
-            <Icon name={icon} size={20} color={iconColor ?? T.colors.primary} />
+            <Icon name={icon} size={20} color={iconColor ?? E.blue} />
           </View>
         ) : null}
         <View style={styles.rowBody}>
@@ -200,7 +208,7 @@ export function ListRow({
             {title}
           </Text>
           {subtitle ? (
-            <Text style={styles.rowSubtitle} numberOfLines={2}>
+            <Text style={styles.rowSubtitle} numberOfLines={subtitleLines}>
               {subtitle}
             </Text>
           ) : null}
@@ -234,7 +242,7 @@ export function EmptyState({
   return (
     <View style={styles.empty}>
       <View style={styles.emptyIcon}>
-        <Icon name={icon} size={30} color={T.colors.textDisabled} />
+        <Icon name={icon} size={28} color={E.blue} />
       </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       {text ? <Text style={styles.emptyText}>{text}</Text> : null}
@@ -335,7 +343,7 @@ export function PrimaryButton({
       ? T.colors.danger
       : tone === 'success'
         ? T.colors.success
-        : T.colors.primary;
+        : E.blue;
   return (
     <TouchableOpacity
       style={[styles.primaryBtn, { backgroundColor: bg }, (disabled || loading) && styles.btnDisabled]}
@@ -373,7 +381,7 @@ export function SecondaryButton({
       disabled={disabled}
       activeOpacity={0.8}
     >
-      {icon ? <Icon name={icon} size={18} color={T.colors.primary} /> : null}
+      {icon ? <Icon name={icon} size={18} color={E.blue} /> : null}
       <Text style={styles.secondaryBtnText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -412,50 +420,49 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: T.spacing.sm,
     paddingHorizontal: T.spacing.xl,
-    paddingBottom: T.spacing.md,
-    backgroundColor: T.colors.canvas,
+    paddingBottom: 14,
+    backgroundColor: E.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: E.line,
+    marginBottom: T.spacing.lg,
   },
-  backBtn: { marginLeft: -T.spacing.sm },
+  backBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: E.soft, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
   headerTitles: { flex: 1 },
-  headerTitle: { ...T.font.h2, color: T.colors.textPrimary },
-  headerTitleLarge: { ...T.font.h1, color: T.colors.textPrimary },
-  headerSubtitle: { ...T.font.small, color: T.colors.textMuted, marginTop: 1 },
+  headerTitle: { fontSize: 19, lineHeight: 25, fontWeight: '600', letterSpacing: -0.4, color: E.ink },
+  headerTitleLarge: { fontSize: 27, lineHeight: 34, fontWeight: '600', letterSpacing: -0.7, color: E.ink },
+  headerSubtitle: { fontSize: 13, lineHeight: 19, color: E.muted, marginTop: 2 },
 
   card: {
-    backgroundColor: T.colors.surface,
-    borderRadius: T.radius.lg,
-    padding: T.spacing.lg,
+    backgroundColor: E.surface,
+    borderRadius: 14,
+    padding: 17,
     marginBottom: T.spacing.md,
     borderWidth: 1,
-    borderColor: T.colors.border,
-    ...T.shadow.card,
+    borderColor: E.line,
   },
   cardDanger: { borderColor: T.colors.dangerBorder },
 
   badge: {
-    paddingHorizontal: T.spacing.sm,
-    paddingVertical: 3,
-    borderRadius: T.radius.sm,
-    maxWidth: 150,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: T.radius.pill,
+    maxWidth: 160,
   },
-  badgeText: { ...T.font.caption, fontSize: 10.5 },
+  badgeText: { fontSize: 11, fontWeight: '600' },
 
   statTile: {
     flex: 1,
-    backgroundColor: T.colors.surface,
-    borderRadius: T.radius.md,
-    paddingVertical: T.spacing.md,
-    paddingHorizontal: T.spacing.sm,
-    alignItems: 'center',
+    backgroundColor: E.surface,
+    borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
-    borderColor: T.colors.border,
+    borderColor: E.line,
   },
-  statValue: { ...T.font.metric, color: T.colors.primary },
+  statValue: { color: E.ink, fontSize: 25, fontWeight: '500', letterSpacing: -1 },
   statLabel: {
-    ...T.font.caption,
-    color: T.colors.textMuted,
-    marginTop: 2,
-    textAlign: 'center',
+    fontSize: 10,
+    color: E.muted,
+    marginTop: 4,
     // Длинные подписи переносим только по словам: иначе react-native-web
     // рвёт слово посередине («Отрицательны/х»).
     ...(({ wordBreak: 'keep-all' } as any)),
@@ -465,7 +472,7 @@ export const styles = StyleSheet.create({
   segmentedRow: {
     paddingHorizontal: T.spacing.xl,
     gap: T.spacing.sm,
-    paddingBottom: T.spacing.md,
+    paddingBottom: T.spacing.lg,
     // Чипы должны быть по высоте контента, а не по высоте контейнера
     alignItems: 'center',
   },
@@ -473,129 +480,132 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: T.spacing.lg,
-    paddingVertical: T.spacing.sm,
-    borderRadius: T.radius.pill,
-    backgroundColor: T.colors.surface,
+    paddingHorizontal: 14,
+    minHeight: 36,
+    borderRadius: 9,
+    backgroundColor: E.surface,
     borderWidth: 1,
-    borderColor: T.colors.border,
+    borderColor: E.line,
   },
-  segmentActive: { backgroundColor: T.colors.primary, borderColor: T.colors.primary },
-  segmentText: { ...T.font.small, fontWeight: '600', color: T.colors.textSecondary },
-  segmentTextActive: { color: T.colors.textOnBrand },
+  segmentActive: { backgroundColor: E.blue, borderColor: E.blue },
+  segmentText: { fontSize: 13, fontWeight: '500', color: E.ink },
+  segmentTextActive: { color: '#FFFFFF' },
   segmentCount: {
     minWidth: 20,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: T.radius.pill,
-    backgroundColor: T.colors.primarySoft,
+    backgroundColor: E.soft,
     alignItems: 'center',
   },
   segmentCountActive: { backgroundColor: 'rgba(255, 255, 255, 0.22)' },
-  segmentCountText: { ...T.font.caption, fontSize: 10, color: T.colors.primary },
-  segmentCountTextActive: { color: T.colors.textOnBrand },
+  segmentCountText: { fontSize: 10, fontWeight: '600', color: E.blue },
+  segmentCountTextActive: { color: '#FFFFFF' },
 
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: T.spacing.md },
   rowIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: T.radius.md,
-    backgroundColor: T.colors.primarySoft,
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    backgroundColor: E.soft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowBody: { flex: 1 },
-  rowTitle: { ...T.font.bodyStrong, color: T.colors.textPrimary, lineHeight: 20 },
-  rowSubtitle: { ...T.font.small, color: T.colors.textMuted, marginTop: 2, lineHeight: 18 },
+  rowTitle: { fontSize: 15, fontWeight: '600', color: E.ink, lineHeight: 21 },
+  rowSubtitle: { fontSize: 12, color: E.muted, marginTop: 4, lineHeight: 18 },
   rowFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: T.spacing.md,
-    paddingTop: T.spacing.sm,
+    marginTop: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: T.colors.border,
+    borderTopColor: E.line,
   },
-  rowMeta: { ...T.font.caption, color: T.colors.textMuted },
+  rowMeta: { fontSize: 11, lineHeight: 17, color: E.muted, flex: 1 },
 
   empty: { alignItems: 'center', paddingTop: 56, paddingHorizontal: T.spacing.xxl },
   emptyIcon: {
     width: 60,
     height: 60,
-    borderRadius: 30,
-    backgroundColor: T.colors.surfaceSunken,
+    borderRadius: 16,
+    backgroundColor: E.soft,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: T.spacing.lg,
   },
-  emptyTitle: { ...T.font.h3, color: T.colors.textSecondary, textAlign: 'center' },
+  emptyTitle: { fontSize: 17, fontWeight: '600', letterSpacing: -0.3, color: E.ink, textAlign: 'center' },
   emptyText: {
-    ...T.font.small,
-    color: T.colors.textMuted,
+    fontSize: 13,
+    color: E.muted,
     textAlign: 'center',
     marginTop: T.spacing.sm,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   emptyBtn: {
     marginTop: T.spacing.xl,
     paddingHorizontal: T.spacing.xl,
-    paddingVertical: T.spacing.md,
-    borderRadius: T.radius.md,
-    backgroundColor: T.colors.primarySoft,
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: 9,
+    backgroundColor: E.blue,
   },
-  emptyBtnText: { ...T.font.small, fontWeight: '700', color: T.colors.primary },
+  emptyBtnText: { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
 
-  field: { marginBottom: T.spacing.lg },
-  fieldLabel: { ...T.font.overline, color: T.colors.textSecondary, marginBottom: T.spacing.sm },
+  field: { marginBottom: 18 },
+  fieldLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 1.2, textTransform: 'uppercase', color: E.muted, marginBottom: T.spacing.sm },
   fieldRequired: { color: T.colors.danger },
-  fieldHint: { ...T.font.caption, color: T.colors.textMuted, marginTop: T.spacing.xs },
+  fieldHint: { fontSize: 11, lineHeight: 16, color: E.muted, marginTop: 6 },
   input: {
-    backgroundColor: T.colors.surface,
+    backgroundColor: E.surface,
     borderWidth: 1,
-    borderColor: T.colors.border,
-    borderRadius: T.radius.md,
-    paddingHorizontal: T.spacing.lg,
-    paddingVertical: T.spacing.md,
-    fontSize: 16,
-    color: T.colors.textPrimary,
+    borderColor: E.line,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    color: E.ink,
   },
-  inputMultiline: { minHeight: 88, textAlignVertical: 'top', paddingTop: T.spacing.md },
+  inputMultiline: { minHeight: 88, textAlignVertical: 'top', paddingTop: 13 },
 
   choiceWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: T.spacing.sm },
   choice: {
-    paddingHorizontal: T.spacing.lg,
-    paddingVertical: T.spacing.sm + 1,
-    borderRadius: T.radius.md,
-    backgroundColor: T.colors.surface,
+    paddingHorizontal: 14,
+    minHeight: 38,
+    justifyContent: 'center',
+    borderRadius: 9,
+    backgroundColor: E.surface,
     borderWidth: 1,
-    borderColor: T.colors.border,
+    borderColor: E.line,
   },
-  choiceActive: { backgroundColor: T.colors.primarySoft, borderColor: T.colors.primary },
-  choiceText: { ...T.font.small, fontWeight: '600', color: T.colors.textSecondary },
-  choiceTextActive: { color: T.colors.primary },
+  choiceActive: { backgroundColor: E.soft, borderColor: E.blue },
+  choiceText: { fontSize: 13, fontWeight: '500', color: E.ink },
+  choiceTextActive: { color: E.blue, fontWeight: '600' },
 
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: T.spacing.sm,
-    borderRadius: T.radius.md,
-    paddingVertical: T.spacing.lg,
-    ...T.shadow.primaryGlow,
+    borderRadius: 10,
+    minHeight: 50,
+    paddingHorizontal: T.spacing.xl,
   },
-  primaryBtnText: { ...T.font.bodyStrong, fontSize: 16, color: T.colors.textOnBrand },
+  primaryBtnText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
   secondaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: T.spacing.sm,
-    borderRadius: T.radius.md,
-    paddingVertical: T.spacing.md,
-    backgroundColor: T.colors.surface,
+    borderRadius: 10,
+    minHeight: 46,
+    paddingHorizontal: T.spacing.lg,
+    backgroundColor: E.surface,
     borderWidth: 1,
-    borderColor: T.colors.borderStrong,
+    borderColor: E.line,
   },
-  secondaryBtnText: { ...T.font.bodyStrong, color: T.colors.primary },
+  secondaryBtnText: { fontSize: 14, fontWeight: '600', color: E.blue },
   btnDisabled: { opacity: 0.5 },
 
   fab: {
@@ -604,20 +614,22 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: T.spacing.sm,
-    paddingHorizontal: T.spacing.xl,
-    paddingVertical: T.spacing.md + 2,
-    borderRadius: T.radius.pill,
-    backgroundColor: T.colors.primary,
+    paddingHorizontal: 18,
+    minHeight: 48,
+    borderRadius: 12,
+    backgroundColor: E.blue,
     ...T.shadow.raised,
   },
-  fabText: { ...T.font.bodyStrong, color: T.colors.textOnBrand },
+  fabText: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
 
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: T.spacing.lg,
-    paddingVertical: T.spacing.sm,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDF0F5',
   },
-  infoLabel: { ...T.font.small, color: T.colors.textMuted },
-  infoValue: { ...T.font.small, fontWeight: '600', color: T.colors.textPrimary, flex: 1, textAlign: 'right' },
+  infoLabel: { fontSize: 13, color: E.muted },
+  infoValue: { fontSize: 13, fontWeight: '600', color: E.ink, flex: 1, textAlign: 'right' },
 });

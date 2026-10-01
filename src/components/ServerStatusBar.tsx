@@ -24,7 +24,9 @@ export default function ServerStatusBar() {
     return () => unsubscribe();
   }, []);
 
-  if (!session) {
+  // Default online connection needs no permanent banner. Keep custom-server
+  // identification and offline warnings visible.
+  if (!session || (isConnected && (!serverName || serverName === 'По умолчанию'))) {
     return null;
   }
 

@@ -1,3 +1,5 @@
+import { materialMovementKey } from '@/lib/materialContext';
+import { RETIRED_WRITE_OFF_IDS } from '@/lib/legacyWriteOffCleanup';
 import React, { useMemo } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -13,7 +15,6 @@ import {
   label,
   toneOf,
   formatQty,
-  materialBalanceKey,
 } from '@/lib/domain';
 import { formatSmartDate } from '@/lib/formatDate';
 
@@ -33,7 +34,7 @@ function MaterialHistoryScreen({ movements }: { movements: MaterialMovement[] })
   const rows = useMemo(
     () =>
       movements
-        .filter((m) => materialBalanceKey(m.materialName) === balanceKey)
+        .filter((m) => !RETIRED_WRITE_OFF_IDS.has(m.id) && materialMovementKey(m) === balanceKey)
         .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()),
     [movements, balanceKey]
   );
@@ -53,6 +54,8 @@ function MaterialHistoryScreen({ movements }: { movements: MaterialMovement[] })
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <Card style={styles.balanceCard}>
+            <Text style={styles.meta}>{route.params?.context}</Text>
+            <Text style={styles.comment}>Работа: {route.params?.workName ?? 'не привязана'}</Text>
             <Text style={styles.balanceLabel}>Остаток</Text>
             <Text style={[styles.balanceValue, balance < 0 && { color: T.colors.danger }]}>
               {formatQty(balance)} {unit || 'ед.'}
@@ -102,6 +105,7 @@ function MaterialHistoryScreen({ movements }: { movements: MaterialMovement[] })
           navigation.navigate('MaterialForm', {
             name,
             unit,
+            projectId: route.params?.projectId,
             // Привязку к смете берём из уже существующих движений: заводить
             // новое движение по той же позиции без resource_id значило бы
             // терять связь, которую списание по нормам уже установило.

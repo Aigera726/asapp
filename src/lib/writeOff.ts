@@ -43,6 +43,10 @@ export async function loadWriteOffPlan(assignmentId: string): Promise<WriteOffPl
     .get<WorkAssignment>('work_assignments')
     .find(assignmentId);
 
+  if (!assignment.isAvailable) {
+    throw new Error('Задание недоступно: обновите договоры и фактические сметы.');
+  }
+
   const contract = assignment.contractId
     ? await database.collections
         .get<Contract>('contracts')

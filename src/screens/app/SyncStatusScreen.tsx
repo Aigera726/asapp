@@ -248,7 +248,7 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { width: '100%', maxWidth: 1200, alignSelf: 'center',
     flex: 1,
     backgroundColor: T.colors.canvas,
   },

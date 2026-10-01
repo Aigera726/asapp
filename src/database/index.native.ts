@@ -8,7 +8,12 @@ import { modelClasses } from './models';
 
 // Нативный модуль WatermelonDB присутствует только в dev-client/релизной
 // сборке; в обычном Expo Go его нет, поэтому там откатываемся на LokiJS.
-const isNativeAvailable = NativeModules.WatermelonDB != null;
+// Модуль регистрируется в нативном коде под именем WMDatabaseBridge
+// (см. native/android/.../WMDatabaseBridge.java), а не "WatermelonDB" —
+// с неверным именем эта проверка всегда была false, и приложение молча
+// уходило на LokiJS даже в релизной сборке, где LokiJS полагается на
+// IndexedDB, недоступный в React Native, и падает при инициализации.
+const isNativeAvailable = NativeModules.WMDatabaseBridge != null;
 
 let adapter;
 

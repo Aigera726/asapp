@@ -3,6 +3,61 @@ import { schemaMigrations, createTable, addColumns } from '@nozbe/watermelondb/S
 export const migrations = schemaMigrations({
   migrations: [
     {
+      // Остаток объёма работы: сводка ERP по заданию и история отправок.
+      toVersion: 13,
+      steps: [
+        addColumns({ table: 'work_assignments', columns: [
+          { name: 'work_confirmed_volume', type: 'number', isOptional: true },
+          { name: 'work_pending_volume', type: 'number', isOptional: true },
+          { name: 'assignment_confirmed_volume', type: 'number', isOptional: true },
+          { name: 'assignment_pending_volume', type: 'number', isOptional: true },
+        ] }),
+        addColumns({ table: 'reports', columns: [
+          // Watermelon требует обязательный created_at; у старых отчётов 0.
+          { name: 'created_at', type: 'number' },
+        ] }),
+        createTable({
+          name: 'work_reports',
+          columns: [
+            { name: 'mobile_report_id', type: 'string', isOptional: true, isIndexed: true },
+            { name: 'assignment_id', type: 'string', isOptional: true, isIndexed: true },
+            { name: 'estimate_work_id', type: 'string', isOptional: true, isIndexed: true },
+            { name: 'reported_volume', type: 'number' },
+            { name: 'confirmed_volume', type: 'number', isOptional: true },
+            { name: 'unit', type: 'string', isOptional: true },
+            { name: 'status', type: 'string' },
+            { name: 'executor_name', type: 'string', isOptional: true },
+            { name: 'reported_at', type: 'number', isOptional: true },
+            { name: 'decided_at', type: 'number', isOptional: true },
+            { name: 'decided_by_name', type: 'string', isOptional: true },
+            { name: 'rejection_reason', type: 'string', isOptional: true },
+            { name: 'matching_error_details', type: 'string', isOptional: true },
+            { name: 'updated_at', type: 'number' },
+          ],
+        }),
+      ],
+    },
+    {
+      toVersion: 12,
+      steps: [
+        addColumns({ table: 'estimate_resources', columns: [
+          { name: 'estimate_quantity', type: 'number', isOptional: true },
+          { name: 'resource_kind', type: 'string', isOptional: true },
+          { name: 'in_actual_estimate', type: 'boolean' },
+        ] }),
+        addColumns({ table: 'reports', columns: [
+          { name: 'resource_usage', type: 'string', isOptional: true },
+        ] }),
+      ],
+    },
+    {
+      toVersion: 11,
+      steps: [addColumns({
+        table: 'work_assignments',
+        columns: [{ name: 'is_available', type: 'boolean', isIndexed: true }],
+      })],
+    },
+    {
       // Связь ресурса сметы со строкой работ — основа списания по нормам.
       toVersion: 10,
       steps: [

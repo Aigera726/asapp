@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet,
   Alert, Modal, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform,
-  InputAccessoryView, Keyboard, Button, TouchableWithoutFeedback
+  InputAccessoryView, Keyboard, Button
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -15,6 +15,7 @@ import { useAuthStore } from '@/store/authStore';
 import { generateUUID } from '@/lib/uuid';
 import { formatQty } from '@/lib/domain';
 import { T } from '@/theme';
+import { DismissKeyboard } from '@/components/DismissKeyboard';
 import { Icon } from '@/components/Icon';
 
 const enhance = withObservables([], () => ({
@@ -187,7 +188,7 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
-        <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+        <DismissKeyboard>
           <View>
             <View style={styles.header}>
               <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
@@ -274,7 +275,7 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
               </View>
             </View>
           </View>
-        </TouchableWithoutFeedback>
+        </DismissKeyboard>
 
         <View style={styles.tabsContainer}>
           <TouchableOpacity style={[styles.tab, activeTab === 1 && styles.tabActive]} onPress={() => setActiveTab(1)}>
