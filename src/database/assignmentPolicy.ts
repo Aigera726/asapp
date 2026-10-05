@@ -1,6 +1,8 @@
 /** Поля витрины mobile.v_assignments, миграция 11. */
 export function isEligibleAssignment(row: any): boolean {
-  return row.contract_status === 'APPROVED' && row.estimate_type === 'actual';
+  return row.contract_status === 'APPROVED' && row.status !== 'CANCELLED'
+    && (row.estimate_type === 'actual'
+      || (row.estimate_type === 'work' && typeof row.boq_source_id === 'string' && row.boq_source_id.length > 0));
 }
 
 // Ноль — осознанное значение факта, а не повод брать обычную норму.

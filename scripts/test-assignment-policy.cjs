@@ -17,6 +17,11 @@ const { isEligibleAssignment, actualValue, unavailableAssignments, readAllView }
   for (const type of ['planned', 'work', null, undefined]) {
     assert.equal(isEligibleAssignment({ contract_status: 'APPROVED', estimate_type: type }), false);
   }
+  assert.equal(isEligibleAssignment({ contract_status: 'APPROVED', estimate_type: 'work', boq_source_id: 'boq' }), true);
+  assert.equal(isEligibleAssignment({ contract_status: 'DRAFT', estimate_type: 'work', boq_source_id: 'boq' }), false);
+  assert.equal(isEligibleAssignment({ contract_status: 'APPROVED', estimate_type: 'planned', boq_source_id: 'boq' }), false);
+  assert.equal(isEligibleAssignment({ contract_status: 'APPROVED', estimate_type: 'work', boq_source_id: '' }), false);
+  assert.equal(isEligibleAssignment({ contract_status: 'APPROVED', estimate_type: 'work', boq_source_id: 'boq', status: 'CANCELLED' }), false);
   assert.equal(actualValue(0, 3), 0);
   assert.equal(actualValue('2.5', 3), 2.5);
   assert.equal(actualValue(null, '3'), 3);
