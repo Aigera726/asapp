@@ -1,4 +1,5 @@
 import type { UserRole } from '@/store/authStore';
+import { translate, type Language, type TranslationKey } from '@/i18n/messages';
 
 /** Подписи ролей: в базе лежат коды enum public.user_role. */
 export const ROLE_LABELS: Record<string, string> = {
@@ -10,9 +11,9 @@ export const ROLE_LABELS: Record<string, string> = {
   STOREKEEPER: 'Кладовщик',
 };
 
-export function getRoleLabel(role: UserRole | string | null): string {
+export function getRoleLabel(role: UserRole | string | null, language: Language = 'ru'): string {
   if (!role) return '—';
-  return ROLE_LABELS[role] ?? role;
+  return Object.prototype.hasOwnProperty.call(ROLE_LABELS, role) ? translate(language, `roles.${role}` as TranslationKey) : role;
 }
 
 /**

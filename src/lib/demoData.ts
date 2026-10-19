@@ -33,6 +33,7 @@ const DEMO_TABLES = [
   'work_assignments',
   'estimate_works',
   'estimate_resources',
+  'work_reports',
   'assets',
   'asset_movements',
   'material_movements',
@@ -140,14 +141,38 @@ export async function seedDemoData(): Promise<void> {
       });
     }
 
-    await create('work_assignments', (r) => {
+    const reportAssignment = await create('work_assignments', (r) => {
       r.isAvailable = true;
       r.contractId = contract.id;
       r.estimateWorkId = work.id;
       r.assignmentType = 'FIXED';
       r.assignedQuantity = 420;
       r.status = 'IN_PROGRESS';
+      r.workConfirmedVolume = 120;
+      r.workPendingVolume = 40;
+      r.assignmentConfirmedVolume = 120;
+      r.assignmentPendingVolume = 40;
     });
+
+    // Local-only examples make partial confirmation, pending and rejection visible in the demo.
+    for (const [status, reported, confirmed, daysAgo] of [
+      ['approved', 150, 120, 3], ['pending_approval', 40, null, 1], ['rejected', 20, null, 2],
+    ] as [string, number, number | null, number][]) {
+      await create('work_reports', r => {
+        r.mobileReportId = demoId();
+        r.assignmentId = reportAssignment.id;
+        r.estimateWorkId = work.id;
+        r.reportedVolume = reported;
+        r.confirmedVolume = confirmed;
+        r.unit = 'м³';
+        r.status = status;
+        r.executorName = 'Aigerim Demo';
+        r.reportedAt = ago(daysAgo);
+        r.decidedAt = status === 'pending_approval' ? null : ago(daysAgo - 0.5);
+        r.decidedByName = status === 'pending_approval' ? null : 'Test Reviewer';
+        r.rejectionReason = status === 'rejected' ? 'Demo: quantity requires verification' : null;
+      });
+    }
 
     // ── Материалы: журнал даёт остатки ───────────────────────────────────────
     const movements: [string, string, string, number, number, string | null][] = [

@@ -1,3 +1,5 @@
+import { useTranslation } from '@/i18n';
+import LanguageSelector from '@/components/LanguageSelector';
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -9,6 +11,7 @@ import { A } from '@/components/AuthLayout';
 import { notify } from '@/lib/alert';
 
 export default function ConnectionSetupScreen() {
+  const { t } = useTranslation();
   const { supabaseUrl, supabaseKey, apiUrl, saveConfig, resetConfig } = useConfigStore();
   const navigation = useNavigation();
   const [url, setUrl] = useState(supabaseUrl || '');
@@ -19,17 +22,17 @@ export default function ConnectionSetupScreen() {
 
   const handleSave = async () => {
     if (!url || !key) {
-      notify('Ошибка', 'Заполните оба поля');
+      notify(t('common.error'), t('connection.required'));
       return;
     }
     await saveConfig(url, key, undefined, api);
-    notify('Успешно', 'Настройки сохранены. Выйдите из аккаунта (если были авторизованы) для вступления изменений в силу.');
+    notify(t('connection.success'), t('connection.saved'));
     navigation.goBack();
   };
 
   const handleReset = async () => {
     await resetConfig();
-    notify('Сброс', 'Восстановлены стандартные настройки');
+    notify(t('connection.resetTitle'), t('connection.resetDone'));
     navigation.goBack();
   };
 
@@ -43,12 +46,12 @@ export default function ConnectionSetupScreen() {
         // сборки, как было до появления поля.
         if (parsed.apiUrl) setApi(parsed.apiUrl);
         setShowScanner(false);
-        notify('QR Считан', 'Настройки заполнены');
+        notify(t('connection.qrRead'), t('connection.filled'));
       } else {
-        notify('Ошибка', 'Неверный формат QR-кода');
+        notify(t('common.error'), t('connection.invalidQr'));
       }
     } catch (e) {
-      notify('Ошибка', 'QR-код должен содержать JSON с полями url и key');
+      notify(t('common.error'), t('connection.qrJson'));
     }
   };
 
@@ -57,12 +60,12 @@ export default function ConnectionSetupScreen() {
     if (!permission.granted) {
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>Нет доступа к камере</Text>
+          <Text style={styles.title}>{t('connection.noCamera')}</Text>
           <TouchableOpacity style={styles.primaryButton} onPress={requestPermission}>
-            <Text style={styles.primaryButtonText}>Дать доступ</Text>
+            <Text style={styles.primaryButtonText}>{t('connection.allowCamera')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} onPress={() => setShowScanner(false)}>
-            <Text style={styles.secondaryButtonText}>Назад</Text>
+            <Text style={styles.secondaryButtonText}>{t('common.back')}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -78,7 +81,7 @@ export default function ConnectionSetupScreen() {
           }}
         />
         <TouchableOpacity style={styles.cancelScanBtn} onPress={() => setShowScanner(false)}>
-          <Text style={styles.primaryButtonText}>Отмена</Text>
+          <Text style={styles.primaryButtonText}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -88,10 +91,10 @@ export default function ConnectionSetupScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Text style={styles.backText}>✕ Отмена</Text>
+          <Text style={styles.backText}>✕ {t('common.cancel')}</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Настройки сервера</Text>
-        <View style={{ width: 70 }} />
+        <Text style={styles.headerTitle}>{t('connection.title')}</Text>
+        <LanguageSelector />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -115,34 +118,32 @@ export default function ConnectionSetupScreen() {
           numberOfLines={3}
         />
 
-        <Text style={styles.label}>АДРЕС БЭКЕНДА (РЕГИСТРАЦИЯ)</Text>
+        <Text style={styles.label}>{t('connection.apiLabel')}</Text>
         <TextInput
           style={styles.input}
           value={api}
           onChangeText={setApi}
-          placeholder="http://хост:9000"
+          placeholder="https://server.example.com"
           placeholderTextColor={T.colors.textDisabled}
           autoCapitalize="none"
           autoCorrect={false}
         />
         <Text style={styles.fieldHint}>
-          Сюда уходит регистрация новых пользователей. Если оставить пусто,
-          используется адрес из сборки — но тогда аккаунт создастся на другом
-          сервере, чем указанный выше, и войти под ним не получится.
+          {t('connection.apiHint')}
         </Text>
 
         <TouchableOpacity style={styles.qrButton} onPress={() => setShowScanner(true)}>
-          <Text style={styles.qrButtonText}>Сканировать QR-код</Text>
+          <Text style={styles.qrButtonText}>{t('connection.scan')}</Text>
         </TouchableOpacity>
 
         <View style={styles.spacer} />
 
         <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
-          <Text style={styles.primaryButtonText}>Сохранить</Text>
+          <Text style={styles.primaryButtonText}>{t('common.save')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.secondaryButton} onPress={handleReset}>
-          <Text style={styles.secondaryButtonText}>Сбросить по умолчанию</Text>
+          <Text style={styles.secondaryButtonText}>{t('connection.reset')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

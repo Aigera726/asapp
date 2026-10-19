@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, IconName } from './Icon';
+import LanguageSelector from './LanguageSelector';
+import { useTranslation } from '@/i18n';
 
 import { ECO as A } from '@/theme/ecopro';
 export { ECO as A } from '@/theme/ecopro';
 
 export function AuthLayout({ children, title, subtitle, onBack }: { children: React.ReactNode; title: string; subtitle: string; onBack?: () => void }) {
+  const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const wide = width >= 900;
   const insets = useSafeAreaInsets();
@@ -14,24 +17,25 @@ export function AuthLayout({ children, title, subtitle, onBack }: { children: Re
     <KeyboardAvoidingView style={s.root} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" contentContainerStyle={[s.page, { paddingTop: insets.top + (wide ? 28 : 24), paddingBottom: insets.bottom + 24 }, wide && s.pageWide]}>
         {wide && <View style={s.hero}>
-          <View><Text style={s.heroBrand}>EcoPro<Text style={{ color: A.teal }}>.</Text></Text><Text style={s.eyebrow}>AS GROUP / WORKSPACE</Text></View>
-          <View style={s.heroCopy}><Text style={s.heroTitle}>Управляйте сложным.{ '\n' }Работайте просто.</Text><Text style={s.heroText}>Объекты, работы и команда —{ '\n' }в одном пространстве.</Text></View>
+          <View><Text style={s.heroBrand}>EcoPro<Text style={{ color: A.teal }}>.</Text></Text><Text style={s.eyebrow}>AS GROUP / {t('home.workspace')}</Text></View>
+          <View style={s.heroCopy}><Text style={s.heroTitle}>{t('auth.heroTitle')}</Text><Text style={s.heroText}>{t('auth.heroText')}</Text></View>
           <View style={s.city} accessible={false} pointerEvents="none">
             {[{ h: 100, w: 84 }, { h: 214, w: 112 }, { h: 146, w: 88 }].map((b, i) => <View key={i} style={[s.building, { height: b.h, width: b.w, borderColor: i === 2 ? '#51C8B580' : '#829EDC80' }]}>
               <View style={s.buildingSide} />
               {Array.from({ length: Math.floor(b.h / 27) }, (_, n) => <View key={n} style={s.floor}><View style={s.window} /><View style={s.window} /><View style={s.window} /></View>)}
             </View>)}
           </View>
-          <View style={s.heroFooter}><View style={s.dot} /><Text style={s.heroCaption}>ПРОЕКТЫ. ЛЮДИ. РЕЗУЛЬТАТ.</Text></View>
+          <View style={s.heroFooter}><View style={s.dot} /><Text style={s.heroCaption}>{t('auth.heroCaption')}</Text></View>
         </View>}
         <View style={[s.formSide, !wide && s.formSideMobile]}>
           <View style={s.form}>
-            <View style={s.brandRow}><View style={s.brandIcon}><Icon name="cube-outline" size={24} color="#FFFFFF" /></View><View><Text style={s.brand}>AS<Text style={{ color: A.blue }}> APP</Text></Text><Text style={s.brandCaption}>УПРАВЛЕНИЕ СТРОИТЕЛЬСТВОМ</Text></View></View>
-            {onBack && <TouchableOpacity accessibilityRole="button" style={s.back} onPress={onBack}><Icon name="arrow-left" size={18} color={A.muted} /><Text style={s.backText}>Назад ко входу</Text></TouchableOpacity>}
+            <View style={s.languageRow}><LanguageSelector /></View>
+            <View style={s.brandRow}><View style={s.brandIcon}><Icon name="cube-outline" size={24} color="#FFFFFF" /></View><View style={{ flex: 1 }}><Text style={s.brand}>AS<Text style={{ color: A.blue }}> APP</Text></Text><Text style={s.brandCaption}>{t('auth.brandCaption')}</Text></View></View>
+            {onBack && <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('auth.backToLogin')} style={s.back} onPress={onBack}><Icon name="arrow-left" size={18} color={A.muted} /><Text style={s.backText}>{t('auth.backToLogin')}</Text></TouchableOpacity>}
             <Text accessibilityRole="header" style={s.title}>{title}</Text>
             <Text style={s.subtitle}>{subtitle}</Text>
             {children}
-            <View style={s.footer}><Icon name="shield-check-outline" size={15} color={A.muted} /><Text style={s.footerText}>Рабочее пространство AS Group</Text></View>
+            <View style={s.footer}><Icon name="shield-check-outline" size={15} color={A.muted} /><Text style={s.footerText}>{t('auth.workspace')}</Text></View>
           </View>
         </View>
       </ScrollView>
@@ -40,6 +44,7 @@ export function AuthLayout({ children, title, subtitle, onBack }: { children: Re
 }
 
 export function AuthField({ label, icon, secureTextEntry, ...props }: TextInputProps & { label: string; icon: IconName }) {
+  const { t } = useTranslation();
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   return <View style={s.field}>
@@ -47,7 +52,7 @@ export function AuthField({ label, icon, secureTextEntry, ...props }: TextInputP
     <View style={[s.inputRow, focused && s.inputFocused]}>
       <Icon name={icon} size={20} color={focused ? A.blue : A.muted} />
       <TextInput {...props} accessibilityLabel={label} secureTextEntry={secureTextEntry && !visible} placeholderTextColor="#87909E" style={s.input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
-      {secureTextEntry && <TouchableOpacity accessibilityRole="button" accessibilityLabel={visible ? 'Скрыть пароль' : 'Показать пароль'} onPress={() => setVisible(!visible)} style={s.eye}><Icon name={visible ? 'eye-off-outline' : 'eye-outline'} size={20} color={A.muted} /></TouchableOpacity>}
+      {secureTextEntry && <TouchableOpacity accessibilityRole="button" accessibilityLabel={t(visible ? 'auth.hidePassword' : 'auth.showPassword')} onPress={() => setVisible(!visible)} style={s.eye}><Icon name={visible ? 'eye-off-outline' : 'eye-outline'} size={20} color={A.muted} /></TouchableOpacity>}
     </View>
   </View>;
 }
@@ -86,6 +91,7 @@ const s = StyleSheet.create({
   formSide: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 26 },
   formSideMobile: { width: '100%', paddingVertical: 12 },
   form: { width: '100%', maxWidth: 420 },
+  languageRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 16 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 42 },
   brandIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: A.blue },
   brand: { fontSize: 23, fontWeight: '600', letterSpacing: -0.8, color: A.ink },

@@ -7,6 +7,8 @@ import { AuthStackParamList } from '@/navigation';
 import { notify } from '@/lib/alert';
 import { A, AuthLayout, AuthField, AuthButton, authStyles } from '@/components/AuthLayout';
 import { Icon, IconName } from '@/components/Icon';
+import { useTranslation, useLanguageStore } from '@/i18n';
+import { authError, translate } from '@/i18n/messages';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Register'>;
@@ -18,13 +20,10 @@ type Props = {
  */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const ROLES: { label: string; value: UserRole; icon: string }[] = [
-  { label: 'Подрядчик', value: 'CONTRACTOR', icon: '' },
-  { label: 'Кладовщик', value: 'STOREKEEPER', icon: '' },
-  { label: 'Технадзор', value: 'TECH_SUPERVISOR', icon: '' },
-];
+const ROLES: UserRole[] = ['CONTRACTOR', 'STOREKEEPER', 'TECH_SUPERVISOR'];
 
 export default function RegisterScreen({ navigation }: Props) {
+  const { language, t } = useTranslation();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,21 +38,22 @@ export default function RegisterScreen({ navigation }: Props) {
     const cleanEmail = email.trim();
 
     if (!fullName.trim() || !cleanEmail || !password) {
-      notify('Ошибка', 'Заполните все поля');
+      notify(t('common.error'), t('register.required'));
       return;
     }
     if (!EMAIL_RE.test(cleanEmail)) {
-      notify('Ошибка', 'Проверьте адрес электронной почты');
+      notify(t('common.error'), t('register.invalidEmail'));
       return;
     }
     if (password.length < 6) {
-      notify('Ошибка', 'Пароль должен быть не менее 6 символов');
+      notify(t('common.error'), t('register.shortPassword'));
       return;
     }
 
     const { error, roleMismatch } = await signUp(cleanEmail, password, fullName, role);
+    const selectedLanguage = useLanguageStore.getState().language;
     if (error) {
-      notify('Ошибка регистрации', error);
+      notify(translate(selectedLanguage, 'register.errorTitle'), authError(error, selectedLanguage));
       return;
     }
 
@@ -63,9 +63,8 @@ export default function RegisterScreen({ navigation }: Props) {
       // молча: пользователь выбирал «Технадзор», приёмки предписаний не
       // получал и не знал, почему.
       notify(
-        'Роль отличается от выбранной',
-        `Для этого аккаунта в системе уже задана роль «${getRoleLabel(roleMismatch)}». ` +
-          'Выбранная в форме роль не применилась — если это ошибка, обратитесь к администратору.'
+        translate(selectedLanguage, 'register.roleMismatchTitle'),
+        translate(selectedLanguage, 'register.roleMismatch', { role: getRoleLabel(roleMismatch, selectedLanguage) })
       );
       return;
     }
@@ -75,17 +74,17 @@ export default function RegisterScreen({ navigation }: Props) {
 
   const roleIcons: Record<string, IconName> = { CONTRACTOR: 'hard-hat', STOREKEEPER: 'package-variant-closed', TECH_SUPERVISOR: 'shield-check-outline' };
   return (
-    <AuthLayout title="Создать аккаунт" subtitle="Присоединяйтесь к команде AS Group." onBack={() => navigation.goBack()}>
-      <AuthField label="Имя и фамилия" icon="account-outline" value={fullName} onChangeText={setFullName} placeholder="Иван Иванов" autoComplete="name" textContentType="name" />
-      <AuthField label="Email" icon="email-outline" value={email} onChangeText={setEmail} placeholder="name@company.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" autoComplete="email" />
-      <AuthField label="Пароль" icon="lock-outline" value={password} onChangeText={setPassword} placeholder="Не менее 6 символов" secureTextEntry textContentType="newPassword" autoComplete="new-password" />
-      <Text style={styles.label}>Ваша роль</Text>
-      <View style={styles.roles}>{ROLES.map(r => <TouchableOpacity key={r.value} accessibilityRole="radio" accessibilityState={{ checked: role === r.value }} accessibilityLabel={r.label} style={[styles.role, role === r.value && styles.selected]} onPress={() => setRole(r.value)}>
-        <Icon name={roleIcons[r.value]} size={23} color={role === r.value ? A.blue : A.muted} />
-        <Text style={[styles.roleLabel, role === r.value && { color: A.blue }]}>{r.label}</Text>
+    <AuthLayout title={t('register.title')} subtitle={t('register.subtitle')} onBack={() => navigation.goBack()}>
+      <AuthField label={t('register.fullName')} icon="account-outline" value={fullName} onChangeText={setFullName} placeholder={t('register.namePlaceholder')} autoComplete="name" textContentType="name" />
+      <AuthField label={t('auth.email')} icon="email-outline" value={email} onChangeText={setEmail} placeholder="name@company.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" autoComplete="email" />
+      <AuthField label={t('auth.password')} icon="lock-outline" value={password} onChangeText={setPassword} placeholder={t('register.passwordPlaceholder')} secureTextEntry textContentType="newPassword" autoComplete="new-password" />
+      <Text style={styles.label}>{t('register.role')}</Text>
+      <View style={styles.roles}>{ROLES.map(value => <TouchableOpacity key={value} accessibilityRole="radio" accessibilityState={{ checked: role === value }} accessibilityLabel={getRoleLabel(value, language)} style={[styles.role, role === value && styles.selected]} onPress={() => setRole(value)}>
+        <Icon name={roleIcons[value]} size={23} color={role === value ? A.blue : A.muted} />
+        <Text style={[styles.roleLabel, role === value && { color: A.blue }]}>{getRoleLabel(value, language)}</Text>
       </TouchableOpacity>)}</View>
-      <AuthButton title="Зарегистрироваться" busy={isLoading} onPress={handleRegister} />
-      <TouchableOpacity accessibilityRole="button" style={authStyles.link} onPress={() => navigation.goBack()}><Text style={authStyles.linkText}>Уже есть аккаунт? <Text style={authStyles.accent}>Войти</Text></Text></TouchableOpacity>
+      <AuthButton title={t('register.submit')} busy={isLoading} onPress={handleRegister} />
+      <TouchableOpacity accessibilityRole="button" style={authStyles.link} onPress={() => navigation.goBack()}><Text style={authStyles.linkText}>{t('register.hasAccount')} <Text style={authStyles.accent}>{t('register.signIn')}</Text></Text></TouchableOpacity>
     </AuthLayout>
   );
 }

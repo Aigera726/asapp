@@ -1,3 +1,6 @@
+import { useTranslation, useLanguageStore } from '@/i18n';
+import { authError, translate } from '@/i18n/messages';
+import LanguageSelector from '@/components/LanguageSelector';
 import React, { useState } from 'react';
 import {
   View,
@@ -32,6 +35,7 @@ type Props = {
  * а БИН/ИИН работает вторым фактором.
  */
 export default function OnboardingScreen({ navigation }: Props) {
+  const { t } = useTranslation();
   const {
     linkToContractor,
     fetchProfile,
@@ -50,13 +54,14 @@ export default function OnboardingScreen({ navigation }: Props) {
 
   const handleLink = async () => {
     if (!contractorId.trim()) {
-      notify('Ошибка', 'Введите ID контрагента из договора');
+      notify(t('common.error'), t('onboarding.required'));
       return;
     }
 
     const { error } = await linkToContractor(contractorId, bin);
     if (error) {
-      notify('Не удалось привязать', error);
+      const language = useLanguageStore.getState().language;
+      notify(translate(language, 'onboarding.errorTitle'), authError(error, language));
     }
     // На успехе навигацию не трогаем: пока нужен онбординг, корневой
     // навигатор содержит единственный экран, и replace('MainTabs') просто
@@ -83,12 +88,11 @@ export default function OnboardingScreen({ navigation }: Props) {
         <View style={styles.statusIcon}>
           <Icon name="clock-outline" size={40} color={T.colors.warning} />
         </View>
-        <Text style={styles.title}>Заявка на рассмотрении</Text>
+        <LanguageSelector />
+        <Text style={styles.title}>{t('onboarding.pendingTitle')}</Text>
         <Text style={styles.statusText}>
-          {contractorName
-            ? `Запрос доступа к «${contractorName}» отправлен администратору. `
-            : 'Запрос отправлен администратору. '}
-          Как только его подтвердят, работы ваших договоров появятся в приложении.
+          {contractorName ? t('onboarding.pendingCompany', { company: contractorName }) : t('onboarding.pending')}
+          {' '}{t('onboarding.pendingHint')}
         </Text>
 
         <TouchableOpacity
@@ -100,12 +104,12 @@ export default function OnboardingScreen({ navigation }: Props) {
           {checking ? (
             <ActivityIndicator color={T.colors.textOnBrand} />
           ) : (
-            <Text style={styles.mainBtnText}>Проверить статус</Text>
+            <Text style={styles.mainBtnText}>{t('onboarding.check')}</Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.signOutBtn} onPress={signOut}>
-          <Text style={styles.signOutText}>Выйти из аккаунта</Text>
+          <Text style={styles.signOutText}>{t('onboarding.signOut')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -123,21 +127,18 @@ export default function OnboardingScreen({ navigation }: Props) {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Привязка организации</Text>
+        <View style={{ alignItems: 'flex-end', marginBottom: 16 }}><LanguageSelector /></View>
+        <Text style={styles.title}>{t('onboarding.title')}</Text>
         <Text style={styles.subtitle}>
-          Чтобы получить работы своих договоров, привяжите аккаунт к организации-подрядчику.
-          Заявку подтверждает администратор.
+          {t('onboarding.subtitle')}
         </Text>
 
         {profileError ? (
           <View style={styles.loadErrorCard}>
             <Icon name="alert-circle-outline" size={18} color={T.colors.danger} />
             <Text style={styles.rejectedText}>
-              Не удалось прочитать профиль с сервера: {profileError}
-              {'\n'}
-              Экран привязки показан потому, что роль и организация не
-              загрузились, — это может быть не вашей ошибкой. Проверьте связь и
-              нажмите «Проверить статус» или обратитесь к администратору.
+              {t('onboarding.profileError')}
+              {'\n'}{authError(profileError, useLanguageStore.getState().language)}
             </Text>
           </View>
         ) : null}
@@ -146,9 +147,8 @@ export default function OnboardingScreen({ navigation }: Props) {
           <View style={styles.rejectedCard}>
             <Icon name="close-circle-outline" size={18} color={T.colors.danger} />
             <Text style={styles.rejectedText}>
-              Предыдущая заявка отклонена
-              {linkComment ? `: ${linkComment}` : '.'} Проверьте данные и попробуйте снова
-              или свяжитесь с администратором.
+              {t('onboarding.rejected')}
+              {linkComment ? ` ${linkComment}` : ''}
             </Text>
           </View>
         ) : null}
@@ -156,8 +156,7 @@ export default function OnboardingScreen({ navigation }: Props) {
         <View style={styles.hintCard}>
           <Icon name="information-outline" size={18} color={T.colors.info} />
           <Text style={styles.hintText}>
-            ID контрагента возьмите из карточки договора в УСП или запросите
-            у ПТО. Это длинный идентификатор вида
+            {t('onboarding.idHint')}
             {'\n'}
             <Text style={styles.mono}>c1000000-0000-0000-0000-000000000001</Text>
           </Text>
@@ -165,7 +164,7 @@ export default function OnboardingScreen({ navigation }: Props) {
 
         <View style={styles.formCard}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>ID контрагента</Text>
+            <Text style={styles.label}>{t('onboarding.contractorId')}</Text>
             <TextInput
               style={[styles.input, styles.inputMono]}
               value={contractorId}
@@ -179,19 +178,18 @@ export default function OnboardingScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>БИН / ИИН организации</Text>
+            <Text style={styles.label}>{t('onboarding.bin')}</Text>
             <TextInput
               style={styles.input}
               value={bin}
               onChangeText={setBin}
-              placeholder="12-значный номер"
+              placeholder={t('onboarding.binPlaceholder')}
               placeholderTextColor={T.colors.textMuted}
               keyboardType="number-pad"
               maxLength={12}
             />
             <Text style={styles.fieldHint}>
-              Требуется, если БИН заполнен в карточке контрагента — служит
-              подтверждением, что организация действительно ваша.
+              {t('onboarding.binHint')}
             </Text>
           </View>
 
@@ -204,7 +202,7 @@ export default function OnboardingScreen({ navigation }: Props) {
             {isLoading ? (
               <ActivityIndicator color={T.colors.textOnBrand} />
             ) : (
-              <Text style={styles.mainBtnText}>Привязать</Text>
+              <Text style={styles.mainBtnText}>{t('onboarding.link')}</Text>
             )}
           </TouchableOpacity>
 
@@ -218,20 +216,18 @@ export default function OnboardingScreen({ navigation }: Props) {
               {checking ? (
                 <ActivityIndicator color={T.colors.primary} />
               ) : (
-                <Text style={styles.retryBtnText}>Проверить статус</Text>
+                <Text style={styles.retryBtnText}>{t('onboarding.check')}</Text>
               )}
             </TouchableOpacity>
           ) : null}
         </View>
 
         <Text style={styles.footnote}>
-          Организации заводятся в УСП вместе с договором — создать новую из
-          мобильного приложения нельзя. Если вашей компании ещё нет в системе,
-          обратитесь к ПТО.
+          {t('onboarding.footnote')}
         </Text>
 
         <TouchableOpacity style={styles.signOutBtn} onPress={signOut}>
-          <Text style={styles.signOutText}>Выйти из аккаунта</Text>
+          <Text style={styles.signOutText}>{t('onboarding.signOut')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

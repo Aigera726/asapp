@@ -5,6 +5,7 @@ import { useConfigStore } from '@/store/configStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { T } from '@/theme';
+import { useTranslation } from '@/i18n';
 
 /**
  * Верхняя полоса статуса: к какому серверу подключены и есть ли сеть.
@@ -12,6 +13,7 @@ import { T } from '@/theme';
  * системный отступ сверху — экраны ниже добавляют только свои отступы.
  */
 export default function ServerStatusBar() {
+  const { t } = useTranslation();
   const { serverName } = useConfigStore();
   const { session } = useAuthStore();
   const [isConnected, setIsConnected] = useState(true);
@@ -37,8 +39,8 @@ export default function ServerStatusBar() {
       <View style={[styles.badge, isConnected ? styles.badgeOnline : styles.badgeOffline]}>
         <View style={[styles.dot, isConnected ? styles.dotOnline : styles.dotOffline]} />
         <Text style={[styles.text, !isConnected && styles.textOffline]}>
-          {serverName || 'По умолчанию'}
-          {isConnected ? '' : ' · нет сети'}
+          {!serverName || serverName === 'По умолчанию' ? t('server.default') : serverName === 'Локальный сервер' ? t('server.local') : serverName}
+          {isConnected ? '' : ' · ' + t('server.offline')}
         </Text>
       </View>
     </View>

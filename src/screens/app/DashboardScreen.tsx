@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
-  Alert,
   TextInput,
   ActivityIndicator,
   useWindowDimensions,
@@ -29,6 +28,10 @@ import { Card, EmptyState } from '@/components/ui';
 import { getRoleLabel } from '@/lib/roleLabels';
 import { PRESCRIPTION_OPEN_STATUSES, isOverdue } from '@/lib/domain';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation, useLanguageStore } from '@/i18n';
+import { translate, type TranslationKey } from '@/i18n/messages';
+import LanguageSelector from '@/components/LanguageSelector';
+import { notify } from '@/lib/alert';
 
 const enhance = withObservables([], () => ({
   projects: database.collections.get<Project>('projects').query(),
@@ -49,11 +52,11 @@ interface Props {
 }
 
 /** Быстрые переходы в разделы, которых нет во вкладках. */
-const QUICK_ACTIONS: { icon: IconName; label: string; route: string; params?: object }[] = [
-  { icon: 'clipboard-search-outline', label: 'Проверка', route: 'InspectionForm' },
-  { icon: 'clipboard-alert-outline', label: 'Предписание', route: 'PrescriptionForm' },
-  { icon: 'package-variant-closed', label: 'Материалы', route: 'MaterialForm' },
-  { icon: 'cart-outline', label: 'Закупки', route: 'ProcurementList' },
+const QUICK_ACTIONS: { icon: IconName; label: TranslationKey; route: string; params?: object }[] = [
+  { icon: 'clipboard-search-outline', label: 'home.inspection', route: 'InspectionForm' },
+  { icon: 'clipboard-alert-outline', label: 'home.prescription', route: 'PrescriptionForm' },
+  { icon: 'package-variant-closed', label: 'home.materials', route: 'MaterialForm' },
+  { icon: 'cart-outline', label: 'home.procurement', route: 'ProcurementList' },
 ];
 
 function DashboardScreen({
@@ -63,6 +66,7 @@ function DashboardScreen({
   pendingReports,
   prescriptions,
 }: Props) {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
   const { width: windowWidth } = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(windowWidth);
@@ -72,8 +76,8 @@ function DashboardScreen({
   const contentWidth = Math.min(containerWidth, 1480) - pagePadding * 2;
   const cardWidth = (contentWidth - (columns - 1) * 16) / columns;
   const { role, contractorName, isDemoMode, isAdmin, pendingLinkCount, firstName, lastName, user } = useAuthStore();
-  const accountName = [firstName, lastName].filter(Boolean).join(' ') || user?.email || 'Пользователь';
-  const accountRole = isAdmin ? 'Администратор' : getRoleLabel(role);
+  const accountName = [firstName, lastName].filter(Boolean).join(' ') || user?.email || t('home.user');
+  const accountRole = isAdmin ? t('roles.ADMIN') : getRoleLabel(role, language);
   const initials = [firstName, lastName].filter(Boolean).map(n => n![0]).join('').slice(0, 2).toUpperCase() || accountName[0].toUpperCase();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
@@ -111,9 +115,11 @@ function DashboardScreen({
       // Ошибка синхронизации уходила только в консоль: пользователь тянул
       // список вниз, ничего не менялось, и причина оставалась невидимой.
       console.error('[Dashboard] Sync failed:', err);
-      const message = err?.message ?? 'Не удалось синхронизировать данные';
-      setSyncError(message);
-      if (!silent) Alert.alert('Ошибка синхронизации', message);
+      setSyncError(err?.message || 'sync_failed');
+      if (!silent) {
+        const selectedLanguage = useLanguageStore.getState().language;
+        notify(translate(selectedLanguage, 'home.syncErrorTitle'), translate(selectedLanguage, 'home.syncError'));
+      }
     } finally {
       setRefreshing(false);
     }
@@ -128,22 +134,22 @@ function DashboardScreen({
   const header = (
     <>
       <View style={styles.intro}>
-        <Text style={styles.kicker}>РАБОЧЕЕ ПРОСТРАНСТВО</Text>
-        <Text accessibilityRole="header" style={[styles.pageTitle, roomy && { fontSize: 32, lineHeight: 40 }]}>{firstName ? 'Здравствуйте, ' + firstName : 'Мои объекты'}</Text>
-        <Text style={styles.pageSubtitle}>Всё для работы на строительной площадке</Text>
+        <View style={styles.introTop}><Text style={styles.kicker}>{t('home.workspace')}</Text><LanguageSelector /></View>
+        <Text accessibilityRole="header" style={[styles.pageTitle, roomy && { fontSize: 32, lineHeight: 40 }]}>{firstName ? t('home.greeting', { name: firstName }) : t('home.title')}</Text>
+        <Text style={styles.pageSubtitle}>{t('home.subtitle')}</Text>
       </View>
       <View style={[styles.hero, roomy && styles.heroWide]}>
         <View style={styles.heroHeading}>
           <View style={styles.heroSymbol}><Icon name="clipboard-check-outline" size={25} color={E.blue} /></View>
           <View style={styles.heroCopy}>
-            <Text style={styles.heroTag}>ОПЕРАТИВНЫЙ УЧЁТ</Text>
-            <Text style={styles.heroTitle}>Фиксируйте выполненные работы</Text>
-            <Text style={styles.heroText}>Выберите задание и внесите объём за день.</Text>
+            <Text style={styles.heroTag}>{t('home.heroTag')}</Text>
+            <Text style={styles.heroTitle}>{t('home.heroTitle')}</Text>
+            <Text style={styles.heroText}>{t('home.heroText')}</Text>
           </View>
         </View>
-        <TouchableOpacity accessibilityRole="button" style={[styles.heroButton, roomy && { marginTop: 0 }]} onPress={() => navigation.navigate('Tasks', {})}><Text style={styles.heroButtonText}>Перейти к работам</Text><Icon name="arrow-right" size={18} color="#FFFFFF" /></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" style={[styles.heroButton, roomy && { marginTop: 0 }]} onPress={() => navigation.navigate('Tasks', {})}><Text style={styles.heroButtonText}>{t('home.openTasks')}</Text><Icon name="arrow-right" size={18} color="#FFFFFF" /></TouchableOpacity>
       </View>
-      {isDemoMode && <View style={styles.demoLabel}><View style={styles.demoDot} /><Text style={styles.demoText}>Демо-режим · примеры данных</Text></View>}
+      {isDemoMode && <View style={styles.demoLabel}><View style={styles.demoDot} /><Text style={styles.demoText}>{t('home.demo')}</Text></View>}
       {/* Заявки на доступ — самое верхнее: пока их не подтвердят, подрядчик
           сидит на экране «Заявка на рассмотрении» и работать не может.
           Раньше о новой заявке нигде не сообщалось, и она могла лежать
@@ -156,7 +162,7 @@ function DashboardScreen({
         >
           <Icon name="account-clock-outline" size={20} color={E.blue} />
           <Text style={styles.linkRequestText}>
-            Заявок на доступ: {pendingLinkCount}
+            {t('home.accessRequests', { count: pendingLinkCount })}
           </Text>
           <Icon name="chevron-right" size={18} color={E.blue} />
         </TouchableOpacity>
@@ -172,7 +178,7 @@ function DashboardScreen({
         >
           <Icon name="alert-circle-outline" size={20} color={T.colors.danger} />
           <Text style={styles.alertText}>
-            Просрочено предписаний: {overdue.length}
+            {t('home.overdue', { count: overdue.length })}
           </Text>
           <Icon name="chevron-right" size={18} color={T.colors.danger} />
         </TouchableOpacity>
@@ -182,14 +188,14 @@ function DashboardScreen({
         <TouchableOpacity style={styles.syncErrorBanner} onPress={() => onRefresh()} activeOpacity={0.8}>
           <Icon name="cloud-off-outline" size={18} color={T.colors.warning} />
           <Text style={styles.syncErrorText} numberOfLines={2}>
-            {syncError}
+            {t('home.syncError')}
           </Text>
-          <Text style={styles.syncErrorAction}>Повторить</Text>
+          <Text style={styles.syncErrorAction}>{t('common.retry')}</Text>
         </TouchableOpacity>
       ) : null}
 
       <View style={styles.statsRow}>
-        {[{ value: filteredProjects.length, label: 'Объектов', icon: 'domain' as IconName, route: null }, { value: assignments.length, label: 'Заданий', icon: 'clipboard-list-outline' as IconName, route: 'Tasks' }, { value: openPrescriptions.length, label: 'Предписаний', icon: 'shield-check-outline' as IconName, route: 'Control' }].map(stat => {
+        {[{ value: filteredProjects.length, label: t('home.sites'), icon: 'domain' as IconName, route: null }, { value: assignments.length, label: t('home.assignments'), icon: 'clipboard-list-outline' as IconName, route: 'Tasks' }, { value: openPrescriptions.length, label: t('home.prescriptions'), icon: 'shield-check-outline' as IconName, route: 'Control' }].map(stat => {
           const content = <><View style={styles.statTop}><Icon name={stat.icon} size={19} color={E.blue} />{stat.route && <Icon name="arrow-top-right" size={14} color={E.muted} />}</View><Text style={styles.statValue}>{stat.value}</Text><Text style={styles.statLabel}>{stat.label}</Text></>;
           return stat.route ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={stat.label + ': ' + stat.value} key={stat.label} style={styles.stat} onPress={() => navigation.navigate(stat.route, {})}>{content}</TouchableOpacity> : <View key={stat.label} style={styles.stat}>{content}</View>;
         })}
@@ -203,13 +209,13 @@ function DashboardScreen({
         >
           <Icon name="cloud-upload-outline" size={18} color={E.blue} />
           <Text style={styles.pendingText}>
-            Ожидает отправки: {pendingReports.length}
+            {t('home.pending', { count: pendingReports.length })}
           </Text>
           <Icon name="chevron-right" size={18} color={T.colors.textDisabled} />
         </TouchableOpacity>
       ) : null}
 
-      <Text style={styles.sectionTitle}>Быстрые действия</Text>
+      <Text style={styles.sectionTitle}>{t('home.quickActions')}</Text>
       <View style={styles.actionsRow}>
         {QUICK_ACTIONS.map((a) => (
           <TouchableOpacity
@@ -222,14 +228,14 @@ function DashboardScreen({
               <Icon name={a.icon} size={22} color={E.blue} />
             </View>
             <Text style={styles.actionLabel} numberOfLines={2}>
-              {a.label}
+              {t(a.label)}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <View style={styles.sectionRow}><Text style={styles.sectionTitle}>Объекты</Text><Text style={styles.sectionCount}>{filteredProjects.length}</Text></View>
-      <View style={styles.search}><Icon name="magnify" size={20} color={E.muted} /><TextInput accessibilityLabel="Поиск объекта" value={search} onChangeText={setSearch} placeholder="Найти объект" placeholderTextColor={E.muted} style={styles.searchInput} autoCorrect={false} />{search !== '' && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Очистить поиск" onPress={() => setSearch('')} style={styles.clearSearch}><Icon name="close" size={18} color={E.muted} /></TouchableOpacity>}</View>
+      <View style={styles.sectionRow}><Text style={styles.sectionTitle}>{t('nav.Dashboard')}</Text><Text style={styles.sectionCount}>{filteredProjects.length}</Text></View>
+      <View style={styles.search}><Icon name="magnify" size={20} color={E.muted} /><TextInput accessibilityLabel={t('home.searchLabel')} value={search} onChangeText={setSearch} placeholder={t('home.searchPlaceholder')} placeholderTextColor={E.muted} style={styles.searchInput} autoCorrect={false} />{search !== '' && <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.clearSearch')} onPress={() => setSearch('')} style={styles.clearSearch}><Icon name="close" size={18} color={E.muted} /></TouchableOpacity>}</View>
     </>
   );
 
@@ -239,16 +245,16 @@ function DashboardScreen({
         <View style={[styles.headerInner, { paddingHorizontal: pagePadding }]}>
           <View style={styles.headerLeft}>
             <View style={styles.brandRow}><View style={styles.brandMark}><Icon name="cube-outline" size={21} color="#FFFFFF" /></View><Text style={styles.brandText}>AS<Text style={{ color: E.blue }}> APP</Text></Text></View>
-            {roomy && <View style={styles.orgBlock}><Text style={styles.orgLabel}>ОРГАНИЗАЦИЯ</Text><Text style={styles.account} numberOfLines={1}>{contractorName || 'AS Group'}</Text></View>}
+            {roomy && <View style={styles.orgBlock}><Text style={styles.orgLabel}>{t('home.organization')}</Text><Text style={styles.account} numberOfLines={1}>{contractorName || 'AS Group'}</Text></View>}
           </View>
-          {roomy && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Обновить данные" disabled={refreshing || isDemoMode} onPress={() => onRefresh()} style={styles.refreshBtn}>{refreshing ? <ActivityIndicator color={E.blue} /> : <Icon name="refresh" size={20} color={isDemoMode ? '#A2AAB7' : E.muted} />}</TouchableOpacity>}
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={'Профиль: ' + accountName + ', ' + accountRole} onPress={() => navigation.navigate('Profile')} style={[styles.profileBtn, !roomy && styles.profileCompact]} activeOpacity={0.75}>
+          {roomy && <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.refresh')} disabled={refreshing || isDemoMode} onPress={() => onRefresh()} style={styles.refreshBtn}>{refreshing ? <ActivityIndicator color={E.blue} /> : <Icon name="refresh" size={20} color={isDemoMode ? '#A2AAB7' : E.muted} />}</TouchableOpacity>}
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.profile', { name: accountName, role: accountRole })} onPress={() => navigation.navigate('Profile')} style={[styles.profileBtn, !roomy && styles.profileCompact]} activeOpacity={0.75}>
             <View style={styles.avatar}><Text style={styles.initials}>{initials}</Text></View>
             <View style={styles.profileText}><Text numberOfLines={1} style={styles.profileName}>{accountName}</Text><Text numberOfLines={1} style={styles.profileRole}>{accountRole}</Text></View>
             {roomy && <Icon name="chevron-down" size={17} color={E.muted} />}
           </TouchableOpacity>
         </View>
-        {!roomy && <View style={styles.mobileOrg}><Icon name="domain" size={13} color={E.muted} /><Text numberOfLines={1} style={styles.mobileOrgText}>{contractorName || 'AS Group'}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Обновить данные" disabled={refreshing || isDemoMode} onPress={() => onRefresh()} style={styles.mobileRefresh}>{refreshing ? <ActivityIndicator size="small" color={E.blue} /> : <Icon name="refresh" size={17} color={E.muted} />}</TouchableOpacity></View>}
+        {!roomy && <View style={styles.mobileOrg}><Icon name="domain" size={13} color={E.muted} /><Text numberOfLines={1} style={styles.mobileOrgText}>{contractorName || 'AS Group'}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.refresh')} disabled={refreshing || isDemoMode} onPress={() => onRefresh()} style={styles.mobileRefresh}>{refreshing ? <ActivityIndicator size="small" color={E.blue} /> : <Icon name="refresh" size={17} color={E.muted} />}</TouchableOpacity></View>}
       </View>
 
       <FlatList
@@ -277,22 +283,22 @@ function DashboardScreen({
                   {item.name}
                 </Text>
                 <Text style={styles.projectMeta}>
-                  {projectStats[item.id] || 0} заданий
+                  {t('home.assignmentCount', { count: projectStats[item.id] || 0 })}
                 </Text>
               </View>
               <Icon name="chevron-right" size={20} color={T.colors.textDisabled} />
             </View>
             <View style={styles.projectFooter}>
-              <View style={styles.projectBadge}><Icon name="file-document-outline" size={14} color={E.muted} /><Text style={styles.projectBadgeText}>Договоров: {contracts.filter(c => c.projectId === item.id).length}</Text></View><Text style={styles.openProject}>Открыть работы →</Text>
+              <View style={styles.projectBadge}><Icon name="file-document-outline" size={14} color={E.muted} /><Text style={styles.projectBadgeText}>{t('home.contracts', { count: contracts.filter(c => c.projectId === item.id).length })}</Text></View><Text style={styles.openProject}>{t('home.openWork')}</Text>
             </View>
           </Card>
         )}
         ListEmptyComponent={
           <EmptyState
             icon="office-building-outline"
-            title={search.trim() ? "Ничего не найдено" : "Объектов пока нет"}
-            text={search.trim() ? "Попробуйте другое название объекта." : "Здесь появятся объекты с назначенными работами после синхронизации."}
-            actionLabel={search.trim() ? "Сбросить поиск" : "Проверить синхронизацию"}
+            title={t(search.trim() ? 'home.notFound' : 'home.noSites')}
+            text={t(search.trim() ? 'home.searchHint' : 'home.emptyHint')}
+            actionLabel={t(search.trim() ? 'home.resetSearch' : 'home.checkSync')}
             onAction={() => search.trim() ? setSearch('') : navigation.navigate('SyncStatus')}
           />
         }
@@ -326,6 +332,7 @@ const styles = StyleSheet.create({
   mobileOrgText: { fontSize: 11, color: E.muted, flex: 1 },
   mobileRefresh: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center' },
   list: { padding: 20, paddingBottom: 32, flexGrow: 1, width: '100%', maxWidth: 1480, alignSelf: 'center' },
+  introTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
   intro: { marginTop: 4, marginBottom: 22 },
   kicker: { fontSize: 9, letterSpacing: 1.6, color: E.muted, marginBottom: 9 },
   pageTitle: { fontSize: 27, lineHeight: 34, fontWeight: '600', letterSpacing: -0.7, color: E.ink },

@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ECO as E, ECO_STATUS as S } from '@/theme/ecopro';
-import { formatQty } from '@/lib/domain';
+import { useTranslation } from '@/i18n';
+import { displayQty } from '@/i18n/work';
 import type { VolumeSummary } from '@/database/workVolume';
 
 /**
@@ -9,21 +10,23 @@ import type { VolumeSummary } from '@/database/workVolume';
  * на подтверждении и остаток на фоне плана.
  */
 export function VolumeBar({ volume, unit, legend = true }: { volume: VolumeSummary; unit?: string; legend?: boolean }) {
+  const { language, t } = useTranslation();
+  const fmtQty = (value: number) => displayQty(value, language);
   const plan = volume.plan > 0 ? volume.plan : 1;
   const confirmed = Math.min(volume.confirmed / plan, 1);
   const pending = Math.min(volume.pending / plan, 1 - confirmed);
   return (
     <View>
-      <View style={styles.track} accessibilityLabel={`Подтверждено ${formatQty(volume.confirmed)}, на подтверждении ${formatQty(volume.pending)}, доступно ${formatQty(volume.limit)} из ${formatQty(volume.plan)}`}>
+      <View style={styles.track} accessibilityLabel={t('volume.accessible', { confirmed: fmtQty(volume.confirmed), pending: fmtQty(volume.pending), available: fmtQty(volume.limit), plan: fmtQty(volume.plan) })}>
         {confirmed > 0 && <View style={[styles.part, { flex: confirmed, backgroundColor: S.success }]} />}
         {pending > 0 && <View style={[styles.part, { flex: pending, backgroundColor: E.blue, opacity: 0.45 }]} />}
         <View style={{ flex: Math.max(1 - confirmed - pending, 0) }} />
       </View>
       {legend && (
         <View style={styles.legend}>
-          <LegendItem color={S.success} label="Подтверждено" value={volume.confirmed} unit={unit} />
-          <LegendItem color={E.blue} faded label="На подтверждении" value={volume.pending} unit={unit} />
-          <LegendItem color={S.lineStrong} label="Доступно" value={volume.limit} unit={unit} />
+          <LegendItem color={S.success} label={t('volume.confirmed')} value={volume.confirmed} unit={unit} />
+          <LegendItem color={E.blue} faded label={t('volume.pending')} value={volume.pending} unit={unit} />
+          <LegendItem color={S.lineStrong} label={t('volume.available')} value={volume.limit} unit={unit} />
         </View>
       )}
     </View>
@@ -31,11 +34,12 @@ export function VolumeBar({ volume, unit, legend = true }: { volume: VolumeSumma
 }
 
 function LegendItem({ color, faded, label, value, unit }: { color: string; faded?: boolean; label: string; value: number; unit?: string }) {
+  const { language } = useTranslation();
   return (
     <View style={styles.legendItem}>
       <View style={[styles.dot, { backgroundColor: color, opacity: faded ? 0.45 : 1 }]} />
       <Text style={styles.legendText} numberOfLines={1}>
-        {label} <Text style={styles.legendValue}>{formatQty(value)}{unit ? ' ' + unit : ''}</Text>
+        {label} <Text style={styles.legendValue}>{displayQty(value, language)}{unit ? ' ' + unit : ''}</Text>
       </Text>
     </View>
   );

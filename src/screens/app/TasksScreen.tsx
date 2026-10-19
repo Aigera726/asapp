@@ -31,9 +31,14 @@ import { EmptyState } from '@/components/ui';
 import { syncDatabase } from '@/database/sync';
 import { useAuthStore } from '@/store/authStore';
 import { VolumeBar } from '@/components/VolumeBar';
-import { formatQty } from '@/lib/domain';
 import { loadWorkVolumes } from '@/lib/workVolume';
 import { VolumeSummary } from '@/database/workVolume';
+import { useTranslation } from '@/i18n';
+import type { TranslationKey } from '@/i18n/messages';
+import { displayQty, unitLabel, demoName } from '@/i18n/work';
+import { useAssignmentTexts } from '@/hooks/useAssignmentTexts';
+import { localizedValue } from '@/lib/assignment-texts';
+import LanguageSelector from '@/components/LanguageSelector';
 
 type TasksScreenRouteProp = RouteProp<TabParamList, 'Tasks'>;
 
@@ -47,7 +52,7 @@ interface WorkAssignmentWithName {
   status: 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'SUSPENDED';
   work_name: string;
   work_unit: string;
-  position_type: string;
+  position_type: TranslationKey;
   contract_number: string;
   contractor_name: string;
   project_id: string;
@@ -63,6 +68,8 @@ const AUTO_SYNC_INTERVAL_MS = 30_000;
 let lastAutoSync = 0;
 
 function TasksScreen({ route }: Props) {
+  const { language, t } = useTranslation();
+  const fmtQty = (value: number) => displayQty(value, language);
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const initialProjectId = route.params?.projectId;
   
@@ -71,6 +78,13 @@ function TasksScreen({ route }: Props) {
   const [search, setSearch] = useState('');
   const insets = useSafeAreaInsets();
   const { isDemoMode } = useAuthStore();
+  const { texts, unavailable: translationsUnavailable } = useAssignmentTexts(assignments.map(item => item.id));
+  const assignmentText = (item: WorkAssignmentWithName) => item.wbs_item_id ? undefined
+    : item.resource_id ? texts.resources[item.resource_id] : texts.works[item.id];
+  const workText = (item: WorkAssignmentWithName) => localizedValue(assignmentText(item)?.names, language,
+    (isDemoMode ? demoName(item.work_name, language) : item.work_name) || t('work.unnamed'));
+  const workUnit = (item: WorkAssignmentWithName) => unitLabel(localizedValue(assignmentText(item)?.units, language, item.work_unit), language);
+  const [loadError, setLoadError] = useState(false);
 
   // Решения ERP приходят в любой момент: при каждом открытии вкладки тихо
   // подтягиваем свежие объёмы, иначе остаток на карточках отстаёт.
@@ -183,6 +197,7 @@ function TasksScreen({ route }: Props) {
     const isStale = () => generation !== loadGeneration.current;
 
     setLoading(true);
+    setLoadError(false);
     try {
       let contractIdsToFilter: string[] | null = null;
 
@@ -265,14 +280,14 @@ function TasksScreen({ route }: Props) {
         const contract = wa.contractId ? contractsMap.get(wa.contractId) as Contract | undefined : null;
         const contractor = contract?.contractorId ? contractorsMap.get(contract.contractorId) as Contractor | undefined : null;
 
-        const workName = wbsItem?.name || resource?.name || estimateWork?.name || 'Без названия';
+        const workName = wbsItem?.name || resource?.name || estimateWork?.name || '';
         const workUnit = (wbsItem as any)?.unit || resource?.unit || estimateWork?.unit || '—';
 
-        let positionType = 'СМЕТА (1С)';
+        let positionType: TranslationKey = 'work.positionEstimate';
         if (wa.wbsItemId) {
-          positionType = 'РАБОТА (График)';
+          positionType = 'work.positionSchedule';
         } else if (wa.resourceId) {
-          positionType = 'МАТЕРИАЛ';
+          positionType = 'work.positionMaterial';
         }
 
         return {
@@ -287,7 +302,7 @@ function TasksScreen({ route }: Props) {
           work_unit: workUnit,
           position_type: positionType,
           contract_number: contract?.contractNumber || '',
-          contractor_name: contractor?.companyName || 'Неизвестный контрагент',
+          contractor_name: contractor?.companyName || '',
           project_id: contract?.projectId || '',
           volume: volumes.get(wa.id)?.summary ?? null,
         };
@@ -296,6 +311,7 @@ function TasksScreen({ route }: Props) {
       if (!isStale()) setAssignments(mapped);
     } catch (err) {
       console.error('[TasksScreen] Error mapping assignments:', err);
+      if (!isStale()) setLoadError(true);
     } finally {
       if (!isStale()) setLoading(false);
     }
@@ -308,6 +324,8 @@ function TasksScreen({ route }: Props) {
       assignmentId: item.id,
       workName: item.work_name,
       unit: item.work_unit,
+      resourceId: item.resource_id,
+      wbsItemId: item.wbs_item_id,
     });
   };
 
@@ -329,7 +347,7 @@ function TasksScreen({ route }: Props) {
             style={[styles.chip, selectedId === null && styles.chipActive]}
             onPress={() => onSelect(null)}
           >
-            <Text style={[styles.chipText, selectedId === null && styles.chipTextActive]}>Все</Text>
+            <Text style={[styles.chipText, selectedId === null && styles.chipTextActive]}>{t('work.all')}</Text>
           </TouchableOpacity>
           {data.map(item => (
             <TouchableOpacity
@@ -350,10 +368,10 @@ function TasksScreen({ route }: Props) {
   };
 
   const STATUS: Record<string, { label: string; color: string; bg: string }> = {
-    PLANNED: { label: 'Запланировано', color: S.warning, bg: S.warningSoft },
-    IN_PROGRESS: { label: 'В работе', color: E.blue, bg: E.soft },
-    COMPLETED: { label: 'Выполнено', color: S.success, bg: S.successSoft },
-    SUSPENDED: { label: 'Приостановлено', color: S.danger, bg: S.dangerSoft },
+    PLANNED: { label: t('work.planned'), color: S.warning, bg: S.warningSoft },
+    IN_PROGRESS: { label: t('work.inProgress'), color: E.blue, bg: E.soft },
+    COMPLETED: { label: t('work.completed'), color: S.success, bg: S.successSoft },
+    SUSPENDED: { label: t('work.suspended'), color: S.danger, bg: S.dangerSoft },
   };
 
   const renderTaskCard = ({ item }: { item: WorkAssignmentWithName }) => {
@@ -367,9 +385,9 @@ function TasksScreen({ route }: Props) {
             <Icon name={item.resource_id ? 'package-variant-closed' : 'hammer-wrench'} size={20} color={E.blue} />
           </View>
           <View style={styles.taskBody}>
-            <Text style={styles.taskName} numberOfLines={3}>{item.work_name}</Text>
+            <Text style={styles.taskName} numberOfLines={3}>{workText(item)}</Text>
             <Text style={styles.contractorText} numberOfLines={1}>
-              {item.contractor_name} · Договор № {item.contract_number || '—'}
+              {item.contractor_name || t('work.unknownContractor')} · {t('work.contractNumber', { number: item.contract_number || '—' })}
             </Text>
           </View>
         </View>
@@ -380,26 +398,26 @@ function TasksScreen({ route }: Props) {
             <Text style={[styles.pillText, { color: status.color }]}>{status.label}</Text>
           </View>
           <View style={[styles.pill, { backgroundColor: S.surface2 }]}>
-            <Text style={[styles.pillText, { color: E.muted }]}>{item.position_type}</Text>
+            <Text style={[styles.pillText, { color: E.muted }]}>{t(item.position_type)}</Text>
           </View>
         </View>
 
         {item.volume ? (
           <View style={styles.volumeBox}>
             <View style={styles.volumeHead}>
-              <Text style={styles.volumeKicker}>ДОСТУПНО К ОТПРАВКЕ</Text>
-              <Text style={styles.volumePlan}>план {formatQty(item.volume.plan)} {item.work_unit}</Text>
+              <Text style={styles.volumeKicker}>{t('work.availableToSend')}</Text>
+              <Text style={styles.volumePlan}>{t('work.plan', { quantity: fmtQty(item.volume.plan), unit: workUnit(item) })}</Text>
             </View>
             <Text style={[styles.volumeValue, exhausted && { color: E.muted }]}>
-              {formatQty(item.volume.limit)} <Text style={styles.volumeUnit}>{item.work_unit}</Text>
+              {fmtQty(item.volume.limit)} <Text style={styles.volumeUnit}>{workUnit(item)}</Text>
             </Text>
             <VolumeBar volume={item.volume} legend={item.volume.pending > 0 || item.volume.confirmed > 0} />
           </View>
         ) : (
           <View style={styles.volumeBox}>
-            <Text style={styles.volumeKicker}>ОБЪЁМ ПО ДОГОВОРУ</Text>
+            <Text style={styles.volumeKicker}>{t('work.contractVolume')}</Text>
             <Text style={styles.volumeValue}>
-              {item.assigned_quantity == null ? '—' : formatQty(item.assigned_quantity)} <Text style={styles.volumeUnit}>{item.work_unit}</Text>
+              {item.assigned_quantity == null ? '—' : fmtQty(item.assigned_quantity)} <Text style={styles.volumeUnit}>{workUnit(item)}</Text>
             </Text>
           </View>
         )}
@@ -408,14 +426,14 @@ function TasksScreen({ route }: Props) {
           <Text style={styles.taskId}>#{item.id.slice(0, 8)}</Text>
           <TouchableOpacity
             accessibilityRole="button"
-            accessibilityLabel={'Внести объём: ' + item.work_name}
+            accessibilityLabel={t('work.enterLabel', { name: workText(item) })}
             style={[styles.reportBtn, exhausted && styles.reportBtnMuted]}
             activeOpacity={0.85}
             onPress={() => handleReportPress(item)}
           >
             <Icon name={exhausted ? 'history' : 'plus'} size={17} color={exhausted ? E.blue : '#FFFFFF'} />
             <Text style={[styles.reportBtnText, exhausted && { color: E.blue }]}>
-              {exhausted ? 'История отправок' : 'Внести объём'}
+              {t(exhausted ? 'work.history' : 'work.enter')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -425,43 +443,46 @@ function TasksScreen({ route }: Props) {
 
   const query = search.trim().toLocaleLowerCase();
   const visible = query
-    ? assignments.filter(a => a.work_name.toLocaleLowerCase().includes(query)
+    ? assignments.filter(a => workText(a).toLocaleLowerCase().includes(query)
+      || a.work_name.toLocaleLowerCase().includes(query)
       || a.contract_number.toLocaleLowerCase().includes(query))
     : assignments;
 
   const header = (
     <>
       <View style={styles.intro}>
-        <Text style={styles.kicker}>ОПЕРАТИВНЫЙ УЧЁТ</Text>
+        <View style={styles.languageRow}><Text style={styles.kicker}>{t('home.heroTag')}</Text><LanguageSelector /></View>
         <View style={styles.titleRow}>
-          <Text accessibilityRole="header" style={styles.pageTitle}>Работы</Text>
+          <Text accessibilityRole="header" style={styles.pageTitle}>{t('work.title')}</Text>
           <Text style={styles.headerCount}>{visible.length}</Text>
         </View>
-        <Text style={styles.pageSubtitle}>Выберите работу и внесите выполненный объём</Text>
+        <Text style={styles.pageSubtitle}>{t('work.subtitle')}</Text>
       </View>
 
       <View style={styles.search}>
         <Icon name="magnify" size={20} color={E.muted} />
         <TextInput
-          accessibilityLabel="Поиск работы"
+          accessibilityLabel={t('work.search')}
           value={search}
           onChangeText={setSearch}
-          placeholder="Найти работу или договор"
+          placeholder={t('work.searchPlaceholder')}
           placeholderTextColor={E.muted}
           style={styles.searchInput}
           autoCorrect={false}
         />
         {search !== '' && (
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Очистить поиск" onPress={() => setSearch('')} style={styles.clearSearch}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.clearSearch')} onPress={() => setSearch('')} style={styles.clearSearch}>
             <Icon name="close" size={18} color={E.muted} />
           </TouchableOpacity>
         )}
       </View>
 
+      {translationsUnavailable && <Text style={styles.pageSubtitle}>{t('catalogue.unavailable')}</Text>}
+      {loadError && <View accessibilityRole="alert"><Text>{t('work.loadError')}</Text><TouchableOpacity accessibilityRole="button" onPress={() => { void loadAssignments(); }}><Text>{t('common.retry')}</Text></TouchableOpacity></View>}
       <View style={styles.filtersContainer}>
-        {renderFilterChips(objects, selectedObjectId, setSelectedObjectId, 'name', 'Объект')}
-        {renderFilterChips(projects, selectedProjectId, setSelectedProjectId, 'name', 'Проект')}
-        {renderFilterChips(contracts, selectedContractId, setSelectedContractId, 'contractNumber', 'Договор')}
+        {renderFilterChips(objects, selectedObjectId, setSelectedObjectId, 'name', t('work.object'))}
+        {renderFilterChips(projects, selectedProjectId, setSelectedProjectId, 'name', t('work.project'))}
+        {renderFilterChips(contracts, selectedContractId, setSelectedContractId, 'contractNumber', t('work.contract'))}
       </View>
     </>
   );
@@ -471,7 +492,7 @@ function TasksScreen({ route }: Props) {
       {loading ? (
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={E.blue} />
-          <Text style={styles.loadingText}>Загрузка работ…</Text>
+          <Text style={styles.loadingText}>{t('work.loading')}</Text>
         </View>
       ) : (
         <FlatList
@@ -485,9 +506,9 @@ function TasksScreen({ route }: Props) {
           ListEmptyComponent={
             <EmptyState
               icon="clipboard-list-outline"
-              title={query ? 'Ничего не найдено' : 'Нет работ'}
-              text={query ? 'Попробуйте другое название работы или номер договора.' : 'Измените фильтры или синхронизируйте данные.'}
-              actionLabel={query ? 'Сбросить поиск' : undefined}
+              title={t(query ? 'home.notFound' : 'work.empty')}
+              text={t(query ? 'work.searchHint' : 'work.emptyHint')}
+              actionLabel={query ? t('home.resetSearch') : undefined}
               onAction={query ? () => setSearch('') : undefined}
             />
           }
@@ -505,6 +526,7 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 12, color: E.muted, fontSize: 13 },
   listContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32, flexGrow: 1, width: '100%', maxWidth: 1080, alignSelf: 'center' },
 
+  languageRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 },
   intro: { marginBottom: 18 },
   kicker: { fontSize: 9, letterSpacing: 1.6, color: E.muted, marginBottom: 9 },
   titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },

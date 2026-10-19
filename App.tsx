@@ -12,23 +12,28 @@ import ServerStatusBar from '@/components/ServerStatusBar';
 import { BrandLockup } from '@/components/Brand';
 import { useConfigStore } from '@/store/configStore';
 import { T } from '@/theme';
+import { useLanguageStore, useTranslation } from '@/i18n';
 
 export default function App() {
   const { isLoaded, loadConfig } = useConfigStore();
+  const languageLoaded = useLanguageStore(state => state.isLoaded);
+  const loadLanguage = useLanguageStore(state => state.loadLanguage);
+  const { t } = useTranslation();
 
   useEffect(() => {
     loadConfig();
-  }, [loadConfig]);
+    void loadLanguage();
+  }, [loadConfig, loadLanguage]);
 
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <StatusBar style="dark" />
-        {!isLoaded ? (
+        {!isLoaded || !languageLoaded ? (
           // Брендированный сплэш вместо пустого экрана: загрузка конфига
           // сервера может занять заметное время на холодном старте.
           <View style={styles.splash}>
-            <BrandLockup subtitle="Управление строительством" />
+            <BrandLockup subtitle={languageLoaded ? t('auth.brandCaption') : undefined} />
             <ActivityIndicator
               color={T.colors.accent}
               style={styles.splashSpinner}

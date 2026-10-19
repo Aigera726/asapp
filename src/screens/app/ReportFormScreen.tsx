@@ -32,18 +32,25 @@ import { notify } from '@/lib/alert';
 import { loadEstimateReportPlan, EstimateReportPlan } from '@/lib/estimateReport';
 import { loadWorkVolume, loadLiveWorkVolume, WorkVolume, VolumeHistoryEntry } from '@/lib/workVolume';
 import { syncDatabase } from '@/database/sync';
+import { useTranslation, useLanguageStore } from '@/i18n';
+import { translate, type TranslationKey, type TranslationParams } from '@/i18n/messages';
+import { displayQty, displayDate, unitLabel, demoName, reportError } from '@/i18n/work';
+import { useAssignmentTexts } from '@/hooks/useAssignmentTexts';
+import { localizedValue } from '@/lib/assignment-texts';
+import LanguageSelector from '@/components/LanguageSelector';
 
-const HISTORY_STATUS: Record<VolumeHistoryEntry['status'], { label: string; color: string; bg: string }> = {
-  pending_approval: { label: 'На подтверждении', color: S.warning, bg: S.warningSoft },
-  approved: { label: 'Подтверждено', color: S.success, bg: S.successSoft },
-  rejected: { label: 'Отклонено', color: S.danger, bg: S.dangerSoft },
-  matching_error: { label: 'Ошибка сопоставления', color: S.danger, bg: S.dangerSoft },
-  local: { label: 'Ожидает отправки', color: E.muted, bg: S.surface2 },
+const HISTORY_STATUS: Record<VolumeHistoryEntry['status'], { label: TranslationKey; color: string; bg: string }> = {
+  pending_approval: { label: 'history.pending', color: S.warning, bg: S.warningSoft },
+  approved: { label: 'history.approved', color: S.success, bg: S.successSoft },
+  rejected: { label: 'history.rejected', color: S.danger, bg: S.dangerSoft },
+  matching_error: { label: 'history.matchError', color: S.danger, bg: S.dangerSoft },
+  local: { label: 'history.local', color: E.muted, bg: S.surface2 },
 };
 
-const formatDateTime = (d: Date | null) => d
-  ? d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-  : '—';
+function reportNotify(title: TranslationKey, message: TranslationKey, params?: TranslationParams) {
+  const language = useLanguageStore.getState().language;
+  notify(translate(language, title), translate(language, message, params));
+}
 
 
 type Props = {
@@ -51,10 +58,18 @@ type Props = {
 };
 
 export default function ReportFormScreen({ route }: Props) {
-  const { assignmentId, workName, unit } = route.params;
+  const { language, t } = useTranslation();
+  const fmtQty = (value: number) => displayQty(value, language);
+  const formatDateTime = (value: Date | null) => displayDate(value, language);
+  const { assignmentId, workName, unit, resourceId, wbsItemId } = route.params;
   const navigation = useNavigation<NativeStackNavigationProp<AppStackParamList>>();
   const insets = useSafeAreaInsets();
   const { user, isDemoMode } = useAuthStore();
+  const { texts, unavailable: translationsUnavailable } = useAssignmentTexts([assignmentId]);
+  const assignmentText = wbsItemId ? undefined : resourceId ? texts.resources[resourceId] : texts.works[assignmentId];
+  const displayName = localizedValue(assignmentText?.names, language,
+    (isDemoMode ? demoName(workName || '', language) : workName || '') || t('report.work'));
+  const displayUnit = unitLabel(localizedValue(assignmentText?.units, language, unit || ''), language);
 
   const [quantity, setQuantity] = useState('');
   const [comment, setComment] = useState('');
@@ -121,6 +136,8 @@ export default function ReportFormScreen({ route }: Props) {
       edited === undefined ? planned : parseFloat(edited.replace(',', '.'));
     return {
       resource: r,
+      displayName: localizedValue(texts.resources[r.resourceId]?.names, language, isDemoMode ? demoName(r.name, language) : r.name),
+      displayUnit: unitLabel(localizedValue(texts.resources[r.resourceId]?.units, language, r.unit), language),
       planned,
       actual: Number.isNaN(actual) ? 0 : actual,
       input: edited ?? (hasWorkQty ? formatQty(planned) : ''),
@@ -151,7 +168,7 @@ export default function ReportFormScreen({ route }: Props) {
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        notify('Нет доступа', 'Разрешите доступ к камере в настройках');
+        reportNotify('report.noCameraTitle', 'report.noCamera');
         return;
       }
     }
@@ -171,11 +188,15 @@ export default function ReportFormScreen({ route }: Props) {
   const handleSubmit = async () => {
     const qty = workQty;
     if (!Number.isFinite(qty) || qty <= 0) {
-      notify('Ошибка', 'Введите корректное количество');
+      reportNotify('common.error', 'report.invalidQuantity');
       return;
     }
 
-    if (!plan || !volume) { notify('Данные сметы', planError || 'Дождитесь загрузки фактической сметы.'); return; }
+    if (!plan || !volume) {
+      const selectedLanguage = useLanguageStore.getState().language;
+      notify(translate(selectedLanguage, 'report.estimateTitle'), planError ? reportError(planError, selectedLanguage) : translate(selectedLanguage, 'report.waitEstimate'));
+      return;
+    }
     // Проверяем по данным сервера на момент отправки: решение ERP могло
     // прийти, пока форма была открыта. Без связи — по снимку устройства,
     // окончательную проверку всё равно сделает сервер при отправке.
@@ -183,15 +204,17 @@ export default function ReportFormScreen({ route }: Props) {
     const { summary } = live ?? volume;
     if (qty > summary.limit) {
       const byContract = summary.assignmentAvailable != null && summary.assignmentAvailable < summary.available;
-      notify('Объём работы', `Доступно к отправке: ${formatQty(summary.limit)} ${unit || ''}. ` +
-        `Подтверждено ${formatQty(summary.confirmed)}, на подтверждении ${formatQty(summary.pending)}` +
-        (byContract ? `, по договору осталось ${formatQty(summary.assignmentAvailable!)}.` : '.') +
-        (live || isDemoMode ? '' : ' Нет связи с сервером: это данные на устройстве, они могли устареть.'));
+      const selectedLanguage = useLanguageStore.getState().language;
+      const fmt = (value: number) => displayQty(value, selectedLanguage);
+      notify(translate(selectedLanguage, 'report.volumeTitle'),
+        translate(selectedLanguage, 'report.limitMessage', { available: fmt(summary.limit), unit: unitLabel(unit, selectedLanguage), confirmed: fmt(summary.confirmed), pending: fmt(summary.pending) })
+        + (byContract ? ' ' + translate(selectedLanguage, 'report.contractRemaining', { quantity: fmt(summary.assignmentAvailable!) }) : '')
+        + (live || isDemoMode ? '' : ' ' + translate(selectedLanguage, 'report.staleWarning')));
       return;
     }
     const badLine = writeOffLines.find((l) => l.input.trim() === '' || !Number.isFinite(parseFloat(l.input.replace(',', '.'))) || parseFloat(l.input.replace(',', '.')) < 0);
     if (badLine) {
-      notify('Ошибка', `Некорректное количество: ${badLine.resource.name}`);
+      reportNotify('common.error', 'report.invalidResource', { name: badLine.displayName });
       return;
     }
 
@@ -246,19 +269,21 @@ export default function ReportFormScreen({ route }: Props) {
       });
 
       if (isDemoMode) {
-        notify('Отчёт сохранён', 'Демонстрационный отчёт сохранён только на устройстве.');
+        reportNotify('report.savedTitle', 'report.demoSaved');
       } else {
         try {
           await syncSavedReport();
-          notify('Отчёт отправлен', 'Выполненный объём и ресурсы переданы в ERP, раздел «Оперфакт».');
+          reportNotify('report.sentTitle', 'report.sent');
         } catch (syncError: any) {
-          notify('Отчёт сохранён на устройстве',
-            'Отправить в ERP пока не удалось. Повторите синхронизацию. ' + (syncError?.message ?? ''));
+          const selectedLanguage = useLanguageStore.getState().language;
+          notify(translate(selectedLanguage, 'report.localTitle'), translate(selectedLanguage, 'report.localSaved')
+            + (syncError?.message ? ' ' + reportError(syncError.message, selectedLanguage) : ''));
         }
       }
       navigation.goBack();
     } catch (err: any) {
-      notify('Ошибка', err.message ?? 'Не удалось сохранить отчёт');
+      const selectedLanguage = useLanguageStore.getState().language;
+      notify(translate(selectedLanguage, 'common.error'), reportError(err.message, selectedLanguage));
     } finally {
       setIsSaving(false);
     }
@@ -270,9 +295,9 @@ export default function ReportFormScreen({ route }: Props) {
         <CameraView ref={cameraRef} style={styles.camera} facing="back">
           <View style={styles.cameraControls}>
             <TouchableOpacity id="cancel-camera-btn" style={styles.cameraCancel} onPress={() => setShowCamera(false)}>
-              <Text style={styles.cameraCancelText}>Отмена</Text>
+              <Text style={styles.cameraCancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity id="capture-btn" style={styles.captureBtn} onPress={capturePhoto}>
+            <TouchableOpacity id="capture-btn" accessibilityRole="button" accessibilityLabel={t('report.capture')} style={styles.captureBtn} onPress={capturePhoto}>
               <View style={styles.captureInner} />
             </TouchableOpacity>
           </View>
@@ -295,7 +320,7 @@ export default function ReportFormScreen({ route }: Props) {
         <TouchableOpacity
           id="back-report-btn"
           accessibilityRole="button"
-          accessibilityLabel="Назад"
+          accessibilityLabel={t('common.back')}
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -303,40 +328,42 @@ export default function ReportFormScreen({ route }: Props) {
           <Icon name="chevron-left" size={24} color={E.blue} />
         </TouchableOpacity>
         <View style={styles.topBarTitles}>
-          <Text style={styles.topBarKicker}>ОТЧЁТ ОБ ОБЪЁМЕ</Text>
-          <Text style={styles.topBarTitle} numberOfLines={1}>Внести объём</Text>
+          <Text style={styles.topBarKicker}>{t('report.kicker')}</Text>
+          <Text style={styles.topBarTitle} numberOfLines={1}>{t('work.enter')}</Text>
         </View>
+        <LanguageSelector />
       </View>
       <DismissKeyboard>
         <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.workCard}>
             <View style={styles.workIcon}><Icon name="hammer-wrench" size={20} color={E.blue} /></View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.workName} numberOfLines={3}>{workName || 'Работа'}</Text>
-              <Text style={styles.assignmentId}>Задание #{assignmentId.slice(0, 8)}</Text>
+              <Text style={styles.workName} numberOfLines={3}>{displayName}</Text>
+              <Text style={styles.assignmentId}>{t('report.assignment', { id: assignmentId.slice(0, 8) })}</Text>
             </View>
           </View>
 
+          {translationsUnavailable && <Text style={styles.hint}>{t('catalogue.unavailable')}</Text>}
           {planError && (
             <View style={styles.errorBanner}>
               <Icon name="alert-circle-outline" size={18} color={S.danger} />
-              <Text style={styles.errorText}>{planError}</Text>
+              <Text style={styles.errorText}>{reportError(planError, language)}</Text>
             </View>
           )}
 
           {summary && (
             <View style={styles.card}>
               <View style={styles.metricsGrid}>
-                <Metric label="План по смете" value={summary.plan} unit={unit} />
-                <Metric label="Подтверждено" value={summary.confirmed} unit={unit} color={S.success} />
-                <Metric label="На подтверждении" value={summary.pending} unit={unit} color={summary.pending > 0 ? S.warning : undefined} />
-                <Metric label="Доступно" value={summary.limit} unit={unit} color={exhausted ? S.danger : E.blue} strong />
+                <Metric label={t('volume.plan')} value={summary.plan} unit={displayUnit} />
+                <Metric label={t('volume.confirmed')} value={summary.confirmed} unit={displayUnit} color={S.success} />
+                <Metric label={t('volume.pending')} value={summary.pending} unit={displayUnit} color={summary.pending > 0 ? S.warning : undefined} />
+                <Metric label={t('volume.available')} value={summary.limit} unit={displayUnit} color={exhausted ? S.danger : E.blue} strong />
               </View>
               <View style={{ marginTop: 14 }}>
-                <VolumeBar volume={summary} unit={unit} legend={false} />
+                <VolumeBar volume={summary} unit={displayUnit} legend={false} />
               </View>
               {byContract && (
-                <Text style={styles.hint}>Остаток ограничен объёмом по договору организации.</Text>
+                <Text style={styles.hint}>{t('report.contractLimit')}</Text>
               )}
               {!isDemoMode && (
                 <View style={styles.freshRow}>
@@ -347,13 +374,13 @@ export default function ReportFormScreen({ route }: Props) {
                   />
                   <Text style={[styles.freshText, !liveAt && { color: S.warning }]}>
                     {refreshingVolume
-                      ? 'Сверяем с сервером…'
+                      ? t('report.checking')
                       : liveAt
-                        ? `Данные сервера на ${liveAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
-                        : 'Нет связи: показаны данные на устройстве'}
+                        ? t('report.fresh', { time: displayDate(liveAt, language, true) })
+                        : t('report.offline')}
                   </Text>
                   <TouchableOpacity accessibilityRole="button" disabled={refreshingVolume} onPress={() => refreshVolume()}>
-                    <Text style={styles.fillAll}>Обновить</Text>
+                    <Text style={styles.fillAll}>{t('report.refresh')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -364,19 +391,20 @@ export default function ReportFormScreen({ route }: Props) {
             <View style={styles.doneBanner}>
               <Icon name="check-circle-outline" size={20} color={S.success} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.doneTitle}>Весь объём отправлен</Text>
+                <Text style={styles.doneTitle}>{t('report.exhausted')}</Text>
                 <Text style={styles.doneText}>
-                  Новый отчёт можно будет внести, когда ERP подтвердит или отклонит отправленные объёмы.
+                  {t('report.exhaustedHint')}
                 </Text>
               </View>
             </View>
           ) : (
             <>
               <View style={styles.section}>
-                <Text style={styles.label}>Выполненный объём <Text style={{ color: S.danger }}>*</Text></Text>
+                <Text style={styles.label}>{t('report.quantity')} <Text style={{ color: S.danger }}>*</Text></Text>
                 <View style={[styles.quantityRow, overLimit && styles.quantityRowError]}>
                   <TextInput
                     id="quantity-input"
+                    accessibilityLabel={t('report.quantity')}
                     style={styles.quantityInput}
                     value={quantity}
                     onChangeText={setQuantity}
@@ -387,17 +415,17 @@ export default function ReportFormScreen({ route }: Props) {
                     returnKeyType="done"
                     onSubmitEditing={Keyboard.dismiss}
                   />
-                  <Text style={styles.unitText} numberOfLines={1}>{unit || 'ед.'}</Text>
+                  <Text style={styles.unitText} numberOfLines={1}>{displayUnit}</Text>
                 </View>
                 {summary && (
                   <View style={styles.inputFooter}>
                     <Text style={[styles.hint, overLimit && { color: S.danger, fontWeight: '600' }]}>
                       {overLimit
-                        ? `Больше доступного: можно отправить не более ${formatQty(summary.limit)} ${unit || ''}`
-                        : `Можно отправить до ${formatQty(summary.limit)} ${unit || ''}`}
+                        ? t('report.overLimit', { quantity: fmtQty(summary.limit), unit: displayUnit })
+                        : t('report.availableHint', { quantity: fmtQty(summary.limit), unit: displayUnit })}
                     </Text>
                     <TouchableOpacity accessibilityRole="button" onPress={() => setQuantity(formatQty(summary.limit))}>
-                      <Text style={styles.fillAll}>Весь остаток</Text>
+                      <Text style={styles.fillAll}>{t('report.fillRemaining')}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -406,28 +434,28 @@ export default function ReportFormScreen({ route }: Props) {
               {/* Ресурсы фактической сметы */}
               {writeOffLines.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.label}>Ресурсы фактической сметы</Text>
+                  <Text style={styles.label}>{t('report.resources')}</Text>
                   {!hasWorkQty ? (
                     <View style={styles.emptyNote}>
                       <Icon name="calculator-variant-outline" size={18} color={E.muted} />
-                      <Text style={styles.emptyNoteText}>Укажите объём — количества рассчитаются по нормам сметы</Text>
+                      <Text style={styles.emptyNoteText}>{t('report.calculateHint')}</Text>
                     </View>
                   ) : (
                     <View style={styles.table}>
                       {writeOffLines.map((line, i) => (
                         <View key={line.resource.resourceId} style={[styles.writeOffRow, i > 0 && styles.writeOffDivider]}>
                           <View style={styles.writeOffInfo}>
-                            <Text style={styles.writeOffName} numberOfLines={2}>{line.resource.name}</Text>
+                            <Text style={styles.writeOffName} numberOfLines={2}>{line.displayName}</Text>
                             <Text style={styles.writeOffNorm}>
-                              {line.resource.norm == null ? 'Норма не задана' : `${formatQty(line.resource.norm)} × ${formatQty(workQty)} = ${formatQty(line.planned)}`} {line.resource.unit || 'ед.'}
+                              {line.resource.norm == null ? t('report.noNorm') : `${fmtQty(line.resource.norm)} × ${fmtQty(workQty)} = ${fmtQty(line.planned)}`} {line.displayUnit}
                             </Text>
                             <Text style={[styles.writeOffNorm, line.shortage && styles.writeOffWarn]}>
-                              По смете {line.resource.quantity == null ? '—' : formatQty(line.resource.quantity)} {line.resource.unit || 'ед.'}
-                              {line.shortage ? ' · расход выше сметы' : ''}
+                              {t('report.byEstimate', { quantity: line.resource.quantity == null ? '—' : fmtQty(line.resource.quantity), unit: line.displayUnit })}
+                              {line.shortage ? ' · ' + t('report.aboveEstimate') : ''}
                             </Text>
                           </View>
                           <TextInput
-                            accessibilityLabel={'Расход: ' + line.resource.name}
+                            accessibilityLabel={t('report.usageLabel', { name: line.displayName })}
                             style={[styles.writeOffInput, line.shortage && styles.writeOffInputWarn]}
                             value={line.input}
                             onChangeText={(v) =>
@@ -440,7 +468,7 @@ export default function ReportFormScreen({ route }: Props) {
                         </View>
                       ))}
                       <Text style={styles.tableNote}>
-                        Нормы и количества из фактической сметы ERP. Уточнённый расход сохранится в отчёте.
+                        {t('report.resourceNote')}
                       </Text>
                     </View>
                   )}
@@ -449,13 +477,14 @@ export default function ReportFormScreen({ route }: Props) {
 
               {/* Comment */}
               <View style={styles.section}>
-                <Text style={styles.label}>Комментарий</Text>
+                <Text style={styles.label}>{t('report.comment')}</Text>
                 <TextInput
                   id="comment-input"
+                  accessibilityLabel={t('report.comment')}
                   style={styles.commentInput}
                   value={comment}
                   onChangeText={setComment}
-                  placeholder="Опишите особенности выполненных работ…"
+                  placeholder={t('report.commentPlaceholder')}
                   placeholderTextColor={T.colors.textDisabled}
                   multiline
                   numberOfLines={3}
@@ -467,27 +496,27 @@ export default function ReportFormScreen({ route }: Props) {
 
               {/* Photo */}
               <View style={styles.section}>
-                <Text style={styles.label}>Фото выполненных работ</Text>
+                <Text style={styles.label}>{t('report.photo')}</Text>
                 {photoUri ? (
                   <View style={styles.photoPreview}>
                     <Icon name="check-circle-outline" size={20} color={S.success} />
-                    <Text style={styles.photoCheck}>Фото прикреплено</Text>
+                    <Text style={styles.photoCheck}>{t('report.photoAttached')}</Text>
                     <TouchableOpacity id="retake-btn" onPress={takePhoto}>
-                      <Text style={styles.retakeText}>Переснять</Text>
+                      <Text style={styles.retakeText}>{t('report.retake')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity id="camera-btn" style={styles.cameraBtn} onPress={takePhoto} activeOpacity={0.8}>
                     <View style={styles.cameraIcon}><Icon name="camera-outline" size={22} color={E.blue} /></View>
-                    <Text style={styles.cameraBtnText}>Сделать фото</Text>
-                    <Text style={styles.cameraBtnSub}>Рекомендуется для подтверждения</Text>
+                    <Text style={styles.cameraBtnText}>{t('report.takePhoto')}</Text>
+                    <Text style={styles.cameraBtnSub}>{t('report.photoHint')}</Text>
                   </TouchableOpacity>
                 )}
               </View>
 
               <View style={styles.geoInfo}>
                 <Icon name="map-marker-outline" size={16} color={E.muted} />
-                <Text style={styles.geoText}>Геолокация будет записана автоматически при сохранении</Text>
+                <Text style={styles.geoText}>{t('report.geoHint')}</Text>
               </View>
 
               <TouchableOpacity
@@ -503,11 +532,11 @@ export default function ReportFormScreen({ route }: Props) {
                 ) : (
                   <>
                     <Icon name="send-outline" size={18} color="#FFFFFF" />
-                    <Text style={styles.submitBtnText}>Отправить на подтверждение</Text>
+                    <Text style={styles.submitBtnText}>{t('report.submit')}</Text>
                   </>
                 )}
               </TouchableOpacity>
-              <Text style={styles.submitSub}>Без сети отчёт сохранится и уйдёт при появлении связи</Text>
+              <Text style={styles.submitSub}>{t('report.offlineHint')}</Text>
             </>
           )}
 
@@ -515,7 +544,7 @@ export default function ReportFormScreen({ route }: Props) {
           {volume && volume.history.length > 0 && (
             <View style={[styles.section, { marginTop: 28 }]}>
               <View style={styles.sectionRow}>
-                <Text style={styles.sectionTitle}>Отправленные объёмы</Text>
+                <Text style={styles.sectionTitle}>{t('history.title')}</Text>
                 <Text style={styles.sectionCount}>{volume.history.length}</Text>
               </View>
               <View style={styles.table}>
@@ -524,29 +553,28 @@ export default function ReportFormScreen({ route }: Props) {
                   return (
                     <View key={h.id} style={[styles.historyRow, i > 0 && styles.writeOffDivider]}>
                       <View style={styles.historyTop}>
-                        <Text style={styles.historyVolume}>{formatQty(h.volume)} <Text style={styles.historyUnit}>{h.unit || unit}</Text></Text>
+                        <Text style={styles.historyVolume}>{fmtQty(h.volume)} <Text style={styles.historyUnit}>{unitLabel(h.unit || displayUnit, language)}</Text></Text>
                         <View style={[styles.pill, { backgroundColor: st.bg }]}>
                           <View style={[styles.pillDot, { backgroundColor: st.color }]} />
-                          <Text style={[styles.pillText, { color: st.color }]}>{st.label}</Text>
+                          <Text style={[styles.pillText, { color: st.color }]}>{t(st.label)}</Text>
                         </View>
                       </View>
                       <Text style={styles.historyMeta}>
-                        {h.executorName || 'Вы'} · {formatDateTime(h.reportedAt)}
+                        {h.executorName || t('history.you')} · {formatDateTime(h.reportedAt)}
                       </Text>
                       {h.status === 'approved' && h.confirmedVolume != null && (
                         <Text style={[styles.historyMeta, { color: S.success }]}>
-                          Подтверждено {formatQty(h.confirmedVolume)}
-                          {h.confirmedVolume < h.volume ? ` из ${formatQty(h.volume)}` : ''}
+                          {t(h.confirmedVolume < h.volume ? 'history.partial' : 'history.confirmed', { quantity: fmtQty(h.confirmedVolume), reported: fmtQty(h.volume) })}
                           {h.decidedByName ? ` · ${h.decidedByName}` : ''} · {formatDateTime(h.decidedAt)}
                         </Text>
                       )}
                       {h.status === 'rejected' && (
                         <Text style={styles.historyMeta}>
-                          Решение: {h.decidedByName || 'ERP'} · {formatDateTime(h.decidedAt)}
+                          {t('history.decision', { name: h.decidedByName || 'ERP' })} · {formatDateTime(h.decidedAt)}
                         </Text>
                       )}
                       {h.reason && (h.status === 'rejected' || h.status === 'matching_error') ? (
-                        <Text style={[styles.historyMeta, styles.writeOffWarn]}>{h.reason}</Text>
+                        <Text style={[styles.historyMeta, styles.writeOffWarn]}>{t('history.reason', { reason: h.reason })}</Text>
                       ) : null}
                     </View>
                   );
@@ -561,11 +589,12 @@ export default function ReportFormScreen({ route }: Props) {
 }
 
 function Metric({ label, value, unit, color, strong }: { label: string; value: number; unit?: string; color?: string; strong?: boolean }) {
+  const { language } = useTranslation();
   return (
     <View style={[styles.metric, strong && styles.metricStrong]}>
       <Text style={styles.metricLabel} numberOfLines={1}>{label}</Text>
-      <Text style={[styles.metricValue, color ? { color } : null]} numberOfLines={1}>{formatQty(value)}</Text>
-      <Text style={styles.metricUnit} numberOfLines={1}>{unit || 'ед.'}</Text>
+      <Text style={[styles.metricValue, color ? { color } : null]} numberOfLines={1}>{displayQty(value, language)}</Text>
+      <Text style={styles.metricUnit} numberOfLines={1}>{unitLabel(unit, language)}</Text>
     </View>
   );
 }

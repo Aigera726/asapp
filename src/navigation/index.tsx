@@ -9,6 +9,8 @@ import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/lib/supabase';
 import { Icon, IconName } from '@/components/Icon';
 import { T } from '@/theme';
+import { useTranslation } from '@/i18n';
+import type { TranslationKey } from '@/i18n/messages';
 
 // Auth Screens
 import LoginScreen from '@/screens/auth/LoginScreen';
@@ -57,7 +59,7 @@ export type AppStackParamList = {
   MainTabs: undefined;
   Onboarding: undefined;
   AdminAccess: undefined;
-  ReportForm: { assignmentId: string; workName?: string; unit?: string };
+  ReportForm: { assignmentId: string; workName?: string; unit?: string; resourceId?: string | null; wbsItemId?: string | null };
   ProcurementList: undefined;
   CreateRequest: { projectId: string };
   RequestDetail: { requestId: string };
@@ -130,17 +132,18 @@ const TAB_BAR_PADDING = 6;
 const TABS: {
   name: keyof TabParamList;
   component: React.ComponentType<any>;
-  label: string;
+  label: TranslationKey;
   icon: IconName;
 }[] = [
-  { name: 'Dashboard', component: DashboardScreen, label: 'Объекты', icon: 'domain' },
-  { name: 'Tasks', component: TasksScreen, label: 'Работы', icon: 'clipboard-list-outline' },
-  { name: 'Resources', component: ResourcesScreen, label: 'Ресурсы', icon: 'package-variant-closed' },
-  { name: 'Control', component: ControlScreen, label: 'Контроль', icon: 'shield-check-outline' },
-  { name: 'Hub', component: HubScreen, label: 'Ещё', icon: 'dots-horizontal-circle-outline' },
+  { name: 'Dashboard', component: DashboardScreen, label: 'nav.Dashboard', icon: 'domain' },
+  { name: 'Tasks', component: TasksScreen, label: 'nav.Tasks', icon: 'clipboard-list-outline' },
+  { name: 'Resources', component: ResourcesScreen, label: 'nav.Resources', icon: 'package-variant-closed' },
+  { name: 'Control', component: ControlScreen, label: 'nav.Control', icon: 'shield-check-outline' },
+  { name: 'Hub', component: HubScreen, label: 'nav.Hub', icon: 'dots-horizontal-circle-outline' },
 ];
 
 function TabNavigator() {
+  const { t: translateLabel } = useTranslation();
   const { width } = useWindowDimensions();
   const desktop = width >= 1024;
   const insets = useSafeAreaInsets();
@@ -188,7 +191,8 @@ function TabNavigator() {
           name={t.name}
           component={t.component}
           options={{
-            tabBarLabel: t.label,
+            tabBarLabel: translateLabel(t.label),
+            title: translateLabel(t.label),
             tabBarIcon: ({ color }) => <Icon name={t.icon} size={20} color={color} />,
             tabBarBadge:
               t.name === 'Hub' && pendingLinkCount > 0 ? pendingLinkCount : undefined,
