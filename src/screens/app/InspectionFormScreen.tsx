@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { uiLabel } from "@/i18n/ui-labels";
+
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -14,6 +17,7 @@ const RESULT_OPTIONS = Object.entries(INSPECTION_RESULT_LABELS).map(([value, lab
 
 /** Проверка технадзора с фиксацией места. */
 export default function InspectionFormScreen() {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user } = useAuthStore();
@@ -28,11 +32,11 @@ export default function InspectionFormScreen() {
 
   const handleSave = async () => {
     if (!projectId) {
-      Alert.alert('Ошибка', 'Выберите объект');
+      Alert.alert(t("common.error"), t("ui.select_a_site"));
       return;
     }
     if (!title.trim()) {
-      Alert.alert('Ошибка', 'Укажите, что проверялось');
+      Alert.alert(t("common.error"), t("ui.specify_what_was_inspected"));
       return;
     }
 
@@ -72,12 +76,12 @@ export default function InspectionFormScreen() {
       // предлагаем сразу оформить требование с сроком устранения.
       if (result === 'FAIL') {
         Alert.alert(
-          'Зафиксировано нарушение',
-          'Выдать предписание на устранение?',
+          t("ui.violation_recorded"),
+          t("ui.issue_a_corrective_notice"),
           [
-            { text: 'Позже', style: 'cancel', onPress: () => navigation.goBack() },
+            { text: t("ui.later"), style: 'cancel', onPress: () => navigation.goBack() },
             {
-              text: 'Выдать',
+              text: t("ui.issue"),
               onPress: () =>
                 navigation.replace('PrescriptionForm', {
                   projectId,
@@ -93,7 +97,7 @@ export default function InspectionFormScreen() {
       navigation.goBack();
     } catch (err: any) {
       console.error('[InspectionForm] Ошибка сохранения:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось сохранить проверку');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_save_the_inspection"));
     } finally {
       setSaving(false);
     }
@@ -101,37 +105,37 @@ export default function InspectionFormScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScreenHeader title="Проверка" onBack={() => navigation.goBack()} />
+      <ScreenHeader title={t("home.inspection")} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Field label="Объект" required>
+        <Field label={t("work.object")} required>
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
         </Field>
 
-        <Field label="Вид контроля" required>
-          <Choice options={KIND_OPTIONS} value={kind} onChange={setKind} />
+        <Field label={t("ui.inspection_type")} required>
+          <Choice options={(KIND_OPTIONS).map(option => ({ ...option, label: uiLabel(option.label, language) }))} value={kind} onChange={setKind} />
         </Field>
 
-        <Field label="Что проверялось" required>
-          <TextField value={title} onChangeText={setTitle} placeholder="Армирование плиты, ось 3-5" />
+        <Field label={t("ui.what_was_inspected")} required>
+          <TextField value={title} onChangeText={setTitle} placeholder={t("ui.slab_reinforcement_axes_3_5")} />
         </Field>
 
-        <Field label="Результат" required>
-          <Choice options={RESULT_OPTIONS} value={result} onChange={setResult} />
+        <Field label={t("ui.result")} required>
+          <Choice options={(RESULT_OPTIONS).map(option => ({ ...option, label: uiLabel(option.label, language) }))} value={result} onChange={setResult} />
         </Field>
 
         <Field
-          label="Замечания"
-          hint={result === 'FAIL' ? 'После сохранения предложим выдать предписание' : undefined}
+          label={t("ui.remarks")}
+          hint={result === 'FAIL' ? t("ui.after_saving_you_can_issue_a_corrective_notice") : undefined}
         >
           <TextField
             value={description}
             onChangeText={setDescription}
-            placeholder="Описание выявленного, ссылки на нормы…"
+            placeholder={t("ui.findings_references_to_standards")}
             multiline
           />
         </Field>
 
-        <PrimaryButton label="Сохранить проверку" icon="content-save-outline" onPress={handleSave} loading={saving} />
+        <PrimaryButton label={t("ui.save_inspection")} icon="content-save-outline" onPress={handleSave} loading={saving} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

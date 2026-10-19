@@ -23,6 +23,8 @@ const { LANGUAGES, dictionaries, translate, authError } = load('src/i18n/message
 const { createLanguageState, LANGUAGE_STORAGE_KEY } = load('src/i18n/language-state.ts');
 const { displayQty, displayDate, unitLabel, demoName, reportError, REPORT_STATUS, WORK_STATUS } = load('src/i18n/work.ts');
 const { indexAssignmentTexts, localizedValue } = load('src/lib/assignment-texts.ts');
+cache.set(path.resolve(root, 'src/i18n/index.ts'), { useLanguageStore: { getState: () => ({ language: 'en' }) } });
+const { uiLabel, UI_LABEL_KEYS } = load('src/i18n/ui-labels.ts');
 const placeholders = text => [...text.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort();
 
 test('all languages cover every message and preserve substitution parameters', () => {
@@ -102,13 +104,14 @@ test('translated screens have no untranslated Russian labels or missing literal 
   const files = ['src/components/AuthLayout.tsx', 'src/components/LanguageSelector.tsx', 'src/components/ServerStatusBar.tsx',
     'src/screens/auth/LoginScreen.tsx', 'src/screens/auth/RegisterScreen.tsx', 'src/screens/auth/OnboardingScreen.tsx',
     'src/screens/auth/ConnectionSetupScreen.tsx', 'src/screens/app/DashboardScreen.tsx',
-    'src/screens/app/TasksScreen.tsx', 'src/screens/app/ReportFormScreen.tsx', 'src/components/VolumeBar.tsx'];
+    'src/components/VolumeBar.tsx', 'src/components/ui.tsx', 'src/components/ProjectPicker.tsx',
+    ...fs.readdirSync(path.join(root, 'src/screens/app')).filter(f => f.endsWith('.tsx')).map(f => 'src/screens/app/' + f)];
   const check = (node, file) => {
     if (!node || typeof node !== 'object') return;
     if (node.type === 'JSXText') assert.doesNotMatch(node.value, /[А-Яа-яЁё]/, file);
     if (node.type === 'JSXAttribute' && node.value?.type === 'StringLiteral' && /label|title|placeholder/i.test(node.name.name))
       assert.doesNotMatch(node.value.value, /[А-Яа-яЁё]/, file + ': ' + node.name.name);
-    if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 't' && node.arguments[0]?.type === 'StringLiteral')
+    if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && ['t', 'currentText'].includes(node.callee.name) && node.arguments[0]?.type === 'StringLiteral')
       assert.ok(Object.hasOwn(dictionaries.ru, node.arguments[0].value), file + ': ' + node.arguments[0].value);
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) value.forEach(child => check(child, file));
@@ -142,4 +145,11 @@ test('catalogue translations keep work and resource identities separate and use 
   assert.equal(localizedValue({ka:'  '},'ka','Original'),'Original');
   assert.equal(localizedValue({ka:100},'ka','Original'),'Original');
   assert.equal(indexAssignmentTexts([null,{}]).works.a,undefined);
+});
+
+test('built-in labels cover resources, control and service screens without changing free-text values', () => {
+  for (const { code } of LANGUAGES) {
+    for (const [source, key] of Object.entries(UI_LABEL_KEYS)) assert.equal(uiLabel(source, code), dictionaries[code][key]);
+    for (const raw of ['Concrete: user comment', 'Неисправность: АБВ-42', '__proto__', 'constructor']) assert.equal(uiLabel(raw, code), raw);
+  }
 });

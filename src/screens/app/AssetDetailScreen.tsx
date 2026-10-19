@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { uiLabel } from "@/i18n/ui-labels";
+
 import React, { useState } from 'react';
 import {
   View,
@@ -59,6 +62,7 @@ interface Props {
 }
 
 function AssetDetailInner({ asset, movements }: Props) {
+  const { language, t } = useTranslation();
   const navigation = useNavigation();
   const { user } = useAuthStore();
 
@@ -85,11 +89,11 @@ function AssetDetailInner({ asset, movements }: Props) {
   const handleSaveMovement = async () => {
     const parsedHours = hours ? parseFloat(hours.replace(',', '.')) : null;
     if (type === 'SHIFT' && (parsedHours === null || Number.isNaN(parsedHours) || parsedHours <= 0)) {
-      Alert.alert('Ошибка', 'Укажите наработку за смену в часах');
+      Alert.alert(t("common.error"), t("ui.enter_shift_operating_hours"));
       return;
     }
     if (type === 'ISSUE' && !toHolder.trim()) {
-      Alert.alert('Ошибка', 'Укажите, кому выдаётся');
+      Alert.alert(t("common.error"), t("ui.specify_the_recipient"));
       return;
     }
 
@@ -124,7 +128,7 @@ function AssetDetailInner({ asset, movements }: Props) {
       setSheetOpen(false);
     } catch (err: any) {
       console.error('[AssetDetail] Ошибка движения:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось сохранить движение');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_save_the_movement"));
     } finally {
       setSaving(false);
     }
@@ -136,55 +140,55 @@ function AssetDetailInner({ asset, movements }: Props) {
     <View style={styles.container}>
       <ScreenHeader
         title={asset.name}
-        subtitle={label(ASSET_KIND_LABELS, asset.kind)}
+        subtitle={label(ASSET_KIND_LABELS, asset.kind, language)}
         onBack={() => navigation.goBack()}
         right={
           <Badge tone={toneOf(ASSET_STATUS_TONES, asset.status)}>
-            {label(ASSET_STATUS_LABELS, asset.status)}
+            {label(ASSET_STATUS_LABELS, asset.status, language)}
           </Badge>
         }
       />
 
       <ScrollView contentContainerStyle={styles.content}>
         <Card>
-          <InfoRow label="Модель" value={asset.model || '—'} />
-          <InfoRow label="Инвентарный №" value={asset.inventoryNumber || '—'} />
-          <InfoRow label="Серийный №" value={asset.serialNumber || '—'} />
-          <InfoRow label="Ответственный" value={asset.holderName || 'Не выдано'} />
+          <InfoRow label={t("ui.model")} value={asset.model || '—'} />
+          <InfoRow label={t("ui.inventory_no")} value={asset.inventoryNumber || '—'} />
+          <InfoRow label={t("ui.serial_no")} value={asset.serialNumber || '—'} />
+          <InfoRow label={t("ui.responsible_person")} value={asset.holderName || t("ui.not_issued")} />
           {isMachinery ? (
             <InfoRow
-              label="Наработка"
-              value={`${(asset.totalHours ?? totalHours).toFixed(1)} м/ч`}
+              label={t("ui.operating_hours")}
+              value={t("ui.value_engine_h", { p0: (asset.totalHours ?? totalHours).toFixed(1) })}
             />
           ) : null}
         </Card>
 
-        <Text style={styles.sectionTitle}>Действия</Text>
+        <Text style={styles.sectionTitle}>{t("ui.actions")}</Text>
         <View style={styles.actions}>
-          <ActionButton icon="account-arrow-right-outline" label="Выдать" onPress={() => openSheet('ISSUE')} />
-          <ActionButton icon="account-arrow-left-outline" label="Принять" onPress={() => openSheet('RETURN')} />
-          <ActionButton icon="wrench-outline" label="В ремонт" onPress={() => openSheet('SERVICE')} />
+          <ActionButton icon="account-arrow-right-outline" label={t("ui.issue")} onPress={() => openSheet('ISSUE')} />
+          <ActionButton icon="account-arrow-left-outline" label={t("ui.receive")} onPress={() => openSheet('RETURN')} />
+          <ActionButton icon="wrench-outline" label={t("ui.send_for_repair")} onPress={() => openSheet('SERVICE')} />
           {isMachinery ? (
-            <ActionButton icon="clock-outline" label="Смена" onPress={() => openSheet('SHIFT')} />
+            <ActionButton icon="clock-outline" label={t("ui.shift")} onPress={() => openSheet('SHIFT')} />
           ) : null}
         </View>
 
-        <Text style={styles.sectionTitle}>История</Text>
+        <Text style={styles.sectionTitle}>{t("ui.history")}</Text>
         {history.length === 0 ? (
-          <EmptyState icon="history" title="Движений ещё не было" />
+          <EmptyState icon="history" title={t("ui.no_movements_yet")} />
         ) : (
           history.map((m) => (
             <Card key={m.id}>
               <View style={styles.histTop}>
-                <Text style={styles.histType}>{label(ASSET_MOVEMENT_LABELS, m.type)}</Text>
-                <Text style={styles.histDate}>{formatSmartDate(m.occurredAt)}</Text>
+                <Text style={styles.histType}>{label(ASSET_MOVEMENT_LABELS, m.type, language)}</Text>
+                <Text style={styles.histDate}>{formatSmartDate(m.occurredAt, language)}</Text>
               </View>
               {m.toHolder || m.fromHolder ? (
                 <Text style={styles.histWho}>
-                  {m.fromHolder || '—'} → {m.toHolder || 'склад'}
+                  {m.fromHolder || '—'} → {m.toHolder || t("ui.warehouse")}
                 </Text>
               ) : null}
-              {m.hours ? <Text style={styles.histHours}>Наработка: {m.hours} м/ч</Text> : null}
+              {m.hours ? <Text style={styles.histHours}>{t("ui.operating_hours_9af89")}{' '}{m.hours}{t("ui.engine_h")}</Text> : null}
               {m.comment ? <Text style={styles.histComment}>{m.comment}</Text> : null}
             </Card>
           ))
@@ -195,36 +199,36 @@ function AssetDetailInner({ asset, movements }: Props) {
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Новое движение</Text>
+              <Text style={styles.sheetTitle}>{t("ui.new_movement")}</Text>
               <TouchableOpacity onPress={() => setSheetOpen(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <Icon name="close" size={22} color={T.colors.textMuted} />
               </TouchableOpacity>
             </View>
 
             <ScrollView contentContainerStyle={styles.sheetBody} keyboardShouldPersistTaps="handled">
-              <Field label="Тип" required>
-                <Choice options={MOVEMENT_OPTIONS} value={type} onChange={setType} />
+              <Field label={t("ui.type")} required>
+                <Choice options={(MOVEMENT_OPTIONS).map(option => ({ ...option, label: uiLabel(option.label, language) }))} value={type} onChange={setType} />
               </Field>
 
               {type !== 'RETURN' && type !== 'DECOMMISSION' ? (
-                <Field label={type === 'TRANSFER' ? 'Куда / кому' : 'Кому'} required={type === 'ISSUE'}>
-                  <TextField value={toHolder} onChangeText={setToHolder} placeholder="ФИО или участок" />
+                <Field label={type === 'TRANSFER' ? t("ui.destination_recipient") : t("ui.recipient")} required={type === 'ISSUE'}>
+                  <TextField value={toHolder} onChangeText={setToHolder} placeholder={t("ui.full_name_or_work_area")} />
                 </Field>
               ) : null}
 
               {type === 'SHIFT' ? (
-                <Field label="Наработка за смену, м/ч" required>
+                <Field label={t("ui.shift_operating_time_engine_h")} required>
                   <TextField value={hours} onChangeText={setHours} placeholder="8" keyboardType="decimal-pad" />
                 </Field>
               ) : null}
 
-              <Field label="Комментарий">
-                <TextField value={comment} onChangeText={setComment} placeholder="Основание, состояние…" multiline />
+              <Field label={t("report.comment")}>
+                <TextField value={comment} onChangeText={setComment} placeholder={t("ui.reference_condition")} multiline />
               </Field>
 
-              <PrimaryButton label="Сохранить" onPress={handleSaveMovement} loading={saving} />
+              <PrimaryButton label={t("common.save")} onPress={handleSaveMovement} loading={saving} />
               <View style={styles.sheetSpacer} />
-              <SecondaryButton label="Отмена" onPress={() => setSheetOpen(false)} />
+              <SecondaryButton label={t("common.cancel")} onPress={() => setSheetOpen(false)} />
             </ScrollView>
           </View>
         </View>
@@ -253,6 +257,7 @@ function ActionButton({
 const Enhanced = enhance(AssetDetailInner as any);
 
 export default function AssetDetailScreen() {
+  const { t } = useTranslation();
   const route = useRoute<any>();
   const assetId: string | undefined = route.params?.assetId;
   const navigation = useNavigation();
@@ -260,8 +265,8 @@ export default function AssetDetailScreen() {
   if (!assetId) {
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Ошибка" onBack={() => navigation.goBack()} />
-        <EmptyState icon="alert-circle-outline" title="Единица учёта не найдена" />
+        <ScreenHeader title={t("common.error")} onBack={() => navigation.goBack()} />
+        <EmptyState icon="alert-circle-outline" title={t("ui.asset_not_found")} />
       </View>
     );
   }

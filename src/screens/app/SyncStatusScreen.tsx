@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+
+import { LOCALES } from '@/i18n/work';
 import React, { useState } from 'react';
 import {
   View,
@@ -19,6 +22,7 @@ import { ScreenHeader } from '@/components/ui';
 import Report from '@/database/models/Report';
 import PurchaseRequest from '@/database/models/PurchaseRequest';
 import { T } from '@/theme';
+import { getStatusLabel } from '@/lib/statusLabels';
 
 // Fix 1.4: _status is a WatermelonDB internal meta-field that cannot be used
 // with Q.where(). Fetch all purchase_requests reactively and filter in JS.
@@ -41,6 +45,9 @@ interface Props {
 }
 
 function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props) {
+  const { language, t } = useTranslation();
+  const syncLabel = (status: string) => status === 'pending_sync' ? t('history.local')
+    : status === 'draft' ? t('ui.draft') : status === 'synced' ? t('ui.synchronized') : status;
   const navigation = useNavigation<any>();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
@@ -61,8 +68,8 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
     const netState = await NetInfo.fetch();
     if (!netState.isConnected) {
       Alert.alert(
-        'Нет подключения',
-        'Синхронизация недоступна. Данные будут отправлены при восстановлении сети.'
+        t("ui.no_connection"),
+        t("ui.synchronization_is_unavailable_data_will_be_sent_when_the")
       );
       return;
     }
@@ -73,14 +80,14 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
       // as synced — WatermelonDB handles this automatically after pushChanges.
       await syncDatabase(force);
 
-      setLastSyncTime(new Date().toLocaleTimeString('ru-RU'));
+      setLastSyncTime(new Date().toLocaleTimeString(LOCALES[language]));
       Alert.alert(
-        force ? 'Полная загрузка завершена' : 'Синхронизация завершена',
-        'Все данные успешно обновлены.'
+        force ? t("ui.full_download_completed") : t("ui.synchronization_completed"),
+        t("ui.all_data_updated_successfully")
       );
     } catch (err: any) {
       console.error('[SyncScreen] Error:', err);
-      Alert.alert('Ошибка синхронизации', err.message ?? 'Попробуйте ещё раз');
+      Alert.alert(t("home.syncErrorTitle"), err.message ?? t("ui.please_try_again"));
     } finally {
       setIsSyncing(false);
     }
@@ -88,12 +95,12 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
 
   const handleReset = async () => {
     Alert.alert(
-      'Сбросить БД',
-      'Это удалит все локальные данные и загрузит их заново. Продолжить?',
+      t("ui.reset_local_database"),
+      t("ui.this_removes_all_local_data_and_downloads_it_again"),
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t("common.cancel"), style: 'cancel' },
         {
-          text: 'Сбросить',
+          text: t("ui.reset"),
           style: 'destructive',
           onPress: async () => {
             setIsSyncing(true);
@@ -115,11 +122,11 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
               // Force full sync
               await syncDatabase(true);
               
-              setLastSyncTime(new Date().toLocaleTimeString('ru-RU'));
-              Alert.alert('База восстановлена', 'Все данные перезагружены.');
+              setLastSyncTime(new Date().toLocaleTimeString(LOCALES[language]));
+              Alert.alert(t("ui.database_restored"), t("ui.all_data_reloaded"));
             } catch (err: any) {
               console.error('[Reset] Error:', err);
-              Alert.alert('Ошибка', err.message ?? 'Не удалось сбросить БД');
+              Alert.alert(t("common.error"), err.message ?? t("ui.could_not_reset_the_local_database"));
             } finally {
               setIsSyncing(false);
             }
@@ -133,15 +140,15 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
     <View style={styles.reportRow} key={item.id}>
       <View style={styles.reportDot} />
       <View style={styles.reportInfo}>
-        <Text style={styles.reportId}>Отчёт #{item.id.slice(0, 8)}</Text>
-        <Text style={styles.reportQty}>{item.reportedQuantity} ед. · {item.status}</Text>
+        <Text style={styles.reportId}>{t("ui.report")}{item.id.slice(0, 8)}</Text>
+        <Text style={styles.reportQty}>{item.reportedQuantity}{' '}{t("ui.units")}{' '}{getStatusLabel(item.status, language)}</Text>
       </View>
       <View style={[
         styles.syncBadge,
         item.reportSyncStatus === 'pending_sync' && styles.syncBadgePending,
         item.reportSyncStatus === 'draft' && styles.syncBadgeDraft,
       ]}>
-        <Text style={styles.syncBadgeText}>{item.reportSyncStatus}</Text>
+        <Text style={styles.syncBadgeText}>{syncLabel(item.reportSyncStatus)}</Text>
       </View>
     </View>
   );
@@ -150,11 +157,11 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
     <View style={styles.reportRow} key={item.id}>
       <View style={[styles.reportDot, { backgroundColor: T.colors.info }]} />
       <View style={styles.reportInfo}>
-        <Text style={styles.reportId}>Заявка #{item.requestNumber || item.id.slice(0, 8)}</Text>
-        <Text style={styles.reportQty}>{item.comment || 'Нет комментария'}</Text>
+        <Text style={styles.reportId}>{t("ui.request")}{item.requestNumber || item.id.slice(0, 8)}</Text>
+        <Text style={styles.reportQty}>{item.comment || t("ui.no_comment")}</Text>
       </View>
       <View style={[styles.syncBadge, styles.syncBadgePending]}>
-        <Text style={styles.syncBadgeText}>pending_sync</Text>
+        <Text style={styles.syncBadgeText}>{t('history.local')}</Text>
       </View>
     </View>
   );
@@ -165,8 +172,8 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
           кнопки на iOS нет, а жест назад в стеке без заголовка не работал —
           пользователь оставался запертым на странице синхронизации. */}
       <ScreenHeader
-        title="Синхронизация"
-        subtitle={lastSyncTime ? `Последняя: ${lastSyncTime}` : undefined}
+        title={t("ui.synchronization")}
+        subtitle={lastSyncTime ? t("ui.last_value", { p0: lastSyncTime }) : undefined}
         onBack={() => navigation.goBack()}
       />
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -175,11 +182,11 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
         <View style={styles.statsRow}>
           <View style={[styles.statCard, styles.statCardPending]}>
             <Text style={[styles.statNum, { color: T.colors.warning }]}>{totalPending}</Text>
-            <Text style={styles.statLabel}>Ожидают отправки</Text>
+            <Text style={styles.statLabel}>{t("ui.awaiting_upload")}</Text>
           </View>
           <View style={[styles.statCard, styles.statCardSynced]}>
             <Text style={[styles.statNum, { color: T.colors.success }]}>{totalSynced}</Text>
-            <Text style={styles.statLabel}>Синхронизировано</Text>
+            <Text style={styles.statLabel}>{t("ui.synchronized")}</Text>
           </View>
         </View>
 
@@ -194,12 +201,10 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
             {isSyncing ? (
               <View style={styles.syncingRow}>
                 <ActivityIndicator color={T.colors.white} size="small" />
-                <Text style={styles.syncBtnText}>  Синхронизация...</Text>
+                <Text style={styles.syncBtnText}>{t("ui.synchronizing")}</Text>
               </View>
             ) : (
-              <Text style={styles.syncBtnText}>
-                Синхронизировать
-              </Text>
+              <Text style={styles.syncBtnText}>{t("ui.synchronize")}{' '}</Text>
             )}
           </TouchableOpacity>
 
@@ -209,7 +214,7 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
             disabled={isSyncing}
             activeOpacity={0.8}
           >
-            <Text style={styles.forceBtnText}>Загрузить всё заново</Text>
+            <Text style={styles.forceBtnText}>{t("ui.download_everything_again")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -218,14 +223,14 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
             disabled={isSyncing}
             activeOpacity={0.8}
           >
-            <Text style={styles.resetBtnText}>Сбросить БД и перезагрузить</Text>
+            <Text style={styles.resetBtnText}>{t("ui.reset_local_database_and_reload")}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Pending list */}
         {totalPending > 0 && (
           <View style={{ marginBottom: 20 }}>
-            <Text style={styles.sectionTitle}>Ожидают отправки</Text>
+            <Text style={styles.sectionTitle}>{t("ui.awaiting_upload")}</Text>
             {pendingReports.map((item, index) => renderReport({ item, index }))}
             {pendingRequests.map((item, index) => renderRequest({ item, index }))}
           </View>
@@ -233,13 +238,10 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
 
         {/* Sync explanation */}
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Как работает синхронизация</Text>
-          <Text style={styles.infoText}>
-            Все данные сначала сохраняются <Text style={styles.infoHighlight}>локально</Text> (WatermelonDB).
-            {'\n\n'}
-            При наличии интернета данные отправляются в <Text style={styles.infoHighlight}>Supabase</Text>.
-            {'\n\n'}
-            После успешной отправки статус меняется на <Text style={[styles.infoHighlight, { color: T.colors.success }]}>synced</Text>.
+          <Text style={styles.infoTitle}>{t("ui.how_synchronization_works")}</Text>
+          <Text style={styles.infoText}>{t("ui.all_data_is_first_saved")}{' '}<Text style={styles.infoHighlight}>{t("ui.locally")}</Text> (WatermelonDB).
+            {'\n\n'}{t("ui.when_online_data_is_sent_to")}{' '}<Text style={styles.infoHighlight}>Supabase</Text>.
+            {'\n\n'}{t("ui.after_a_successful_upload_the_status_changes_to")}{' '}<Text style={[styles.infoHighlight, { color: T.colors.success }]}>{t('ui.synchronized')}</Text>.
           </Text>
         </View>
       </ScrollView>

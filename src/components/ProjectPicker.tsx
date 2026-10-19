@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { currentText } from "@/i18n/ui-labels";
+
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, FlatList, StyleSheet } from 'react-native';
 import { database } from '@/database';
@@ -30,19 +33,20 @@ export function ProjectPicker({
   projects,
   value,
   onChange,
-  placeholder = 'Выберите объект',
+  placeholder = currentText("ui.select_a_site"),
 }: {
   projects: Project[];
   value: string | null;
   onChange: (projectId: string) => void;
   placeholder?: string;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const selected = projects.find((p) => p.id === value);
 
   return (
     <>
-      <TouchableOpacity style={styles.trigger} onPress={() => setOpen(true)} activeOpacity={0.8}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={selected ? selected.name : placeholder} style={styles.trigger} onPress={() => setOpen(true)} activeOpacity={0.8}>
         <Icon name="office-building-outline" size={18} color={T.colors.primary} />
         <Text
           style={[styles.triggerText, !selected && styles.triggerPlaceholder]}
@@ -62,8 +66,8 @@ export function ProjectPicker({
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Объект</Text>
-              <TouchableOpacity onPress={() => setOpen(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Text style={styles.sheetTitle}>{t("work.object")}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('common.close')} onPress={() => setOpen(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <Icon name="close" size={22} color={T.colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -77,6 +81,9 @@ export function ProjectPicker({
                 return (
                   <TouchableOpacity
                     style={[styles.option, active && styles.optionActive]}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.name}
+                    accessibilityState={{ selected: active }}
                     onPress={() => {
                       onChange(item.id);
                       setOpen(false);
@@ -93,8 +100,8 @@ export function ProjectPicker({
               ListEmptyComponent={
                 <EmptyState
                   icon="office-building-outline"
-                  title="Объектов нет"
-                  text="Синхронизируйте данные — список объектов приходит с сервера."
+                  title={t("ui.no_sites")}
+                  text={t("ui.synchronize_data_to_load_sites_from_the_server")}
                 />
               }
             />

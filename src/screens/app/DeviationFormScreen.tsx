@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { uiLabel } from "@/i18n/ui-labels";
+
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -12,6 +15,7 @@ const CATEGORY_OPTIONS = Object.entries(DEVIATION_CATEGORY_LABELS).map(([value, 
 
 /** Запрос на техническое отклонение от проекта. */
 export default function DeviationFormScreen() {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user } = useAuthStore();
@@ -27,15 +31,15 @@ export default function DeviationFormScreen() {
 
   const handleSave = async () => {
     if (!projectId) {
-      Alert.alert('Ошибка', 'Выберите объект');
+      Alert.alert(t("common.error"), t("ui.select_a_site"));
       return;
     }
     if (!title.trim()) {
-      Alert.alert('Ошибка', 'Укажите суть отклонения');
+      Alert.alert(t("common.error"), t("ui.describe_the_deviation"));
       return;
     }
     if (!reason.trim()) {
-      Alert.alert('Ошибка', 'Укажите обоснование — без него отклонение не согласуют');
+      Alert.alert(t("common.error"), t("ui.provide_justification_a_deviation_cannot_be_approved_without_it"));
       return;
     }
 
@@ -56,7 +60,7 @@ export default function DeviationFormScreen() {
       navigation.goBack();
     } catch (err: any) {
       console.error('[DeviationForm] Ошибка сохранения:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось сохранить отклонение');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_save_the_deviation"));
     } finally {
       setSaving(false);
     }
@@ -64,38 +68,38 @@ export default function DeviationFormScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScreenHeader title="Техническое отклонение" onBack={() => navigation.goBack()} />
+      <ScreenHeader title={t("ui.technical_deviation")} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Field label="Объект" required>
+        <Field label={t("work.object")} required>
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
         </Field>
 
-        <Field label="Категория" required>
-          <Choice options={CATEGORY_OPTIONS} value={category} onChange={setCategory} />
+        <Field label={t("ui.category")} required>
+          <Choice options={(CATEGORY_OPTIONS).map(option => ({ ...option, label: uiLabel(option.label, language) }))} value={category} onChange={setCategory} />
         </Field>
 
-        <Field label="Суть отклонения" required>
-          <TextField value={title} onChangeText={setTitle} placeholder="Замена арматуры A500 на A400" />
+        <Field label={t("ui.deviation_summary")} required>
+          <TextField value={title} onChangeText={setTitle} placeholder={t("ui.replace_a500_rebar_with_a400")} />
         </Field>
 
-        <Field label="Обоснование" required hint="Почему выполнить по проекту невозможно или нецелесообразно">
-          <TextField value={reason} onChangeText={setReason} placeholder="Отсутствие материала у поставщика…" multiline />
+        <Field label={t("ui.justification")} required hint={t("ui.why_following_the_design_is_impossible_or_impractical")}>
+          <TextField value={reason} onChangeText={setReason} placeholder={t("ui.material_unavailable_from_the_supplier")} multiline />
         </Field>
 
-        <Field label="Предлагаемое решение">
+        <Field label={t("ui.proposed_solution")}>
           <TextField
             value={proposedSolution}
             onChangeText={setProposedSolution}
-            placeholder="Пересчёт шага стержней с сохранением площади сечения"
+            placeholder={t("ui.recalculate_bar_spacing_while_preserving_the_cross_sectional_area")}
             multiline
           />
         </Field>
 
-        <Field label="Подробности">
-          <TextField value={description} onChangeText={setDescription} placeholder="Участок, ось, отметка…" multiline />
+        <Field label={t("ui.details")}>
+          <TextField value={description} onChangeText={setDescription} placeholder={t("ui.work_area_axis_elevation")} multiline />
         </Field>
 
-        <PrimaryButton label="Отправить на согласование" icon="send-outline" onPress={handleSave} loading={saving} />
+        <PrimaryButton label={t("ui.submit_for_approval")} icon="send-outline" onPress={handleSave} loading={saving} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

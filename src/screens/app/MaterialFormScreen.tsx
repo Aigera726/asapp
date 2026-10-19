@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { uiLabel } from "@/i18n/ui-labels";
+
 import React, { useState } from 'react';
 import {
   View,
@@ -22,6 +25,7 @@ import { ProjectPicker, useProjects } from '@/components/ProjectPicker';
 import { MATERIAL_MOVEMENT_LABELS, MATERIAL_MOVEMENT_SIGN } from '@/lib/domain';
 import { createLocalRecord } from '@/lib/records';
 import { useAuthStore } from '@/store/authStore';
+import { useResourceDisplay } from '@/hooks/useResourceDisplay';
 
 const TYPE_OPTIONS = Object.entries(MATERIAL_MOVEMENT_LABELS).map(([value, label]) => ({
   value,
@@ -30,6 +34,8 @@ const TYPE_OPTIONS = Object.entries(MATERIAL_MOVEMENT_LABELS).map(([value, label
 
 /** Оформление движения материала по складу. */
 export default function MaterialFormScreen() {
+  const { language, t } = useTranslation();
+  const display = useResourceDisplay();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user } = useAuthStore();
@@ -51,15 +57,15 @@ export default function MaterialFormScreen() {
     const qty = parseFloat(quantity.replace(',', '.'));
 
     if (!projectId) {
-      Alert.alert('Ошибка', 'Выберите объект');
+      Alert.alert(t("common.error"), t("ui.select_a_site"));
       return;
     }
     if (!name.trim()) {
-      Alert.alert('Ошибка', 'Укажите наименование материала');
+      Alert.alert(t("common.error"), t("ui.enter_the_material_name"));
       return;
     }
     if (Number.isNaN(qty) || qty <= 0) {
-      Alert.alert('Ошибка', 'Количество должно быть больше нуля');
+      Alert.alert(t("common.error"), t("ui.quantity_must_be_greater_than_zero"));
       return;
     }
 
@@ -83,7 +89,7 @@ export default function MaterialFormScreen() {
       navigation.goBack();
     } catch (err: any) {
       console.error('[MaterialForm] Ошибка сохранения:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось сохранить движение');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_save_the_movement"));
     } finally {
       setSaving(false);
     }
@@ -94,29 +100,29 @@ export default function MaterialFormScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScreenHeader title="Движение материала" onBack={() => navigation.goBack()} />
+      <ScreenHeader title={t("ui.material_movement")} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Field label="Объект" required>
+        <Field label={t("work.object")} required>
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
         </Field>
 
-        <Field label="Тип движения" required>
-          <Choice options={TYPE_OPTIONS} value={type} onChange={setType} />
+        <Field label={t("ui.movement_type")} required>
+          <Choice options={(TYPE_OPTIONS).map(option => ({ ...option, label: uiLabel(option.label, language) }))} value={type} onChange={setType} />
         </Field>
 
-        <Field label="Наименование" required>
+        <Field label={t("ui.name")} required>
           <TextField
-            value={name}
+            value={route.params?.name ? display.name(route.params?.resourceId, name) : name}
             onChangeText={setName}
-            placeholder="Например: Бетон B25"
+            placeholder={t("ui.example_concrete_b25")}
             editable={!route.params?.name}
           />
         </Field>
 
         <View style={styles.row}>
           <View style={styles.rowGrow}>
-            <Field label="Количество" required>
+            <Field label={t("ui.quantity")} required>
               <TextField
                 value={quantity}
                 onChangeText={setQuantity}
@@ -126,11 +132,11 @@ export default function MaterialFormScreen() {
             </Field>
           </View>
           <View style={styles.rowUnit}>
-            <Field label="Ед. изм.">
+            <Field label={t("ui.unit")}>
               <TextField
-                value={unit}
+                value={route.params?.unit ? display.unit(route.params?.resourceId, unit) : unit}
                 onChangeText={setUnit}
-                placeholder="м³"
+                placeholder={t("units.m3")}
                 editable={!route.params?.unit}
               />
             </Field>
@@ -140,28 +146,28 @@ export default function MaterialFormScreen() {
         {/* Явно показываем, в какую сторону изменится остаток: типов шесть,
             и путать приход с возвратом на складе легко. */}
         <Card style={styles.effectCard}>
-          <Text style={styles.effectLabel}>Влияние на остаток</Text>
+          <Text style={styles.effectLabel}>{t("ui.effect_on_balance")}</Text>
           <Text
             style={[
               styles.effectValue,
               { color: sign > 0 ? T.colors.success : T.colors.danger },
             ]}
           >
-            {sign > 0 ? '+' : '−'} {quantity || '0'} {unit || 'ед.'}
+            {sign > 0 ? '+' : '−'} {quantity || '0'} {display.unit(route.params?.resourceId, unit)}
           </Text>
         </Card>
 
-        <Field label="Комментарий">
+        <Field label={t("report.comment")}>
           <TextField
             value={comment}
             onChangeText={setComment}
-            placeholder="Основание, номер накладной, кому выдано…"
+            placeholder={t("ui.reference_delivery_note_number_recipient")}
             multiline
           />
         </Field>
 
         <PrimaryButton
-          label="Сохранить движение"
+          label={t("ui.save_movement")}
           icon="content-save-outline"
           onPress={handleSave}
           loading={saving}

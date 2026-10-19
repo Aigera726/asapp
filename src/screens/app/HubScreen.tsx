@@ -1,3 +1,5 @@
+import { useTranslation } from '@/i18n';
+
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -51,8 +53,9 @@ type Entry = {
  * счётчиками — так видно, где есть работа, не заходя в каждый раздел.
  */
 function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
-  const { role, contractorName, isAdmin, signOut } = useAuthStore();
+  const { role, contractorName, isAdmin, isDemoMode, signOut } = useAuthStore();
 
   // Демо-данные — инструмент разработки: в релизной сборке блока нет вовсе.
   const [demoOn, setDemoOn] = useState(false);
@@ -74,7 +77,7 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
       }
     } catch (err: any) {
       console.error('[Demo] Ошибка:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось изменить демо-данные');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_change_demo_data"));
     } finally {
       setDemoBusy(false);
     }
@@ -84,38 +87,38 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
 
   const groups: { title: string; entries: Entry[] }[] = [
     {
-      title: 'Закупки и склад',
+      title: t("ui.procurement_and_warehouse"),
       entries: [
         {
           icon: 'cart-outline',
-          title: 'Закупки',
-          subtitle: 'Заявки на материалы и заказы',
+          title: t("home.procurement"),
+          subtitle: t("ui.material_requests_and_orders"),
           route: 'ProcurementList',
           badge: requests.length,
         },
         {
           icon: 'truck-delivery-outline',
-          title: 'Приёмка грузов',
-          subtitle: 'Входящий контроль поставок',
+          title: t("ui.delivery_acceptance"),
+          subtitle: t("ui.incoming_delivery_inspection"),
           route: 'AcceptanceList',
         },
       ],
     },
     {
-      title: 'Документы',
+      title: t("ui.documents"),
       entries: [
         {
           icon: 'file-document-multiple-outline',
-          title: 'Документы',
-          subtitle: 'Акты и подписание ЭЦП',
+          title: t("ui.documents"),
+          subtitle: t("ui.acts_and_digital_signing"),
           route: 'DocumentsTab',
           badge: unsignedDocs,
           tone: T.colors.warning,
         },
         {
           icon: 'draw-pen',
-          title: 'Согласование',
-          subtitle: 'Задачи на решение',
+          title: t("ui.approval"),
+          subtitle: t("ui.tasks_awaiting_a_decision"),
           route: 'ApprovalsTab',
           badge: approvals.length,
           tone: T.colors.warning,
@@ -128,12 +131,12 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
     ...(isAdmin
       ? [
           {
-            title: 'Администрирование',
+            title: t("ui.administration"),
             entries: [
               {
                 icon: 'account-key-outline' as IconName,
-                title: 'Управление доступом',
-                subtitle: 'Заявки подрядчиков и назначение организаций',
+                title: t("ui.access_management"),
+                subtitle: t("ui.contractor_requests_and_organization_assignment"),
                 route: 'AdminAccess',
               },
             ],
@@ -141,20 +144,20 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
         ]
       : []),
     {
-      title: 'Система',
+      title: t("ui.system"),
       entries: [
         {
           icon: 'sync',
-          title: 'Синхронизация',
-          subtitle: 'Обмен данными с сервером',
+          title: t("ui.synchronization"),
+          subtitle: t("ui.data_exchange_with_the_server"),
           route: 'SyncStatus',
           badge: pendingReports.length,
           tone: T.colors.warning,
         },
         {
           icon: 'account-cog-outline',
-          title: 'Профиль и настройки',
-          subtitle: 'Реквизиты, сервер, выход',
+          title: t("ui.profile_and_settings"),
+          subtitle: t("ui.account_details_server_sign_out"),
           route: 'Profile',
         },
       ],
@@ -163,7 +166,7 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Ещё" subtitle={getAccountSubtitle(contractorName, role)} large />
+      <ScreenHeader title={t("nav.Hub")} subtitle={isDemoMode ? t('home.demo') : getAccountSubtitle(contractorName, role, language)} large />
 
       <ScrollView contentContainerStyle={styles.content}>
         {groups.map((g) => (
@@ -198,7 +201,7 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
 
         {DEMO_BUILD ? (
           <View style={styles.group}>
-            <Text style={styles.groupTitle}>Разработка</Text>
+            <Text style={styles.groupTitle}>{t("ui.development")}</Text>
             <View style={styles.groupBody}>
               <TouchableOpacity
                 style={styles.row}
@@ -219,27 +222,25 @@ function HubScreen({ pendingReports, approvals, documents, requests }: Props) {
                 </View>
                 <View style={styles.rowBody}>
                   <Text style={styles.rowTitle}>
-                    {demoOn ? 'Убрать тестовые данные' : 'Заполнить тестовыми данными'}
+                    {demoOn ? t("ui.remove_demo_data") : t("ui.load_demo_data")}
                   </Text>
                   <Text style={styles.rowSubtitle}>
                     {demoOn
-                      ? 'Демо-записи будут удалены, рабочие данные не тронуты'
-                      : 'Объекты, склад, техника, проверки, предписания, отклонения'}
+                      ? t("ui.demo_records_will_be_removed_work_data_will_be")
+                      : t("ui.sites_stock_machinery_inspections_notices_and_deviations")}
                   </Text>
                 </View>
               </TouchableOpacity>
             </View>
             {demoOn ? (
-              <Text style={styles.demoNote}>
-                Демо-записи помечены и на сервер не отправляются
-              </Text>
+              <Text style={styles.demoNote}>{t("ui.demo_records_are_marked_and_are_never_sent_to")}{' '}</Text>
             ) : null}
           </View>
         ) : null}
 
         <TouchableOpacity style={styles.signOut} onPress={signOut} activeOpacity={0.8}>
           <Icon name="logout" size={18} color={T.colors.danger} />
-          <Text style={styles.signOutText}>Выйти из аккаунта</Text>
+          <Text style={styles.signOutText}>{t("onboarding.signOut")}</Text>
         </TouchableOpacity>
 
         <Text style={styles.version}>AS-APP · AS Group</Text>

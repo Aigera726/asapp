@@ -1,3 +1,5 @@
+import { useTranslation } from '@/i18n';
+
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -22,6 +24,7 @@ const enhance = withObservables(['deviationId'], ({ deviationId }: { deviationId
 }));
 
 function DeviationDetailInner({ deviation }: { deviation: Deviation }) {
+  const { language, t } = useTranslation();
   const navigation = useNavigation();
   const { role, user } = useAuthStore();
   const [comment, setComment] = useState('');
@@ -34,7 +37,7 @@ function DeviationDetailInner({ deviation }: { deviation: Deviation }) {
 
   const decide = async (status: 'APPROVED' | 'REJECTED') => {
     if (status === 'REJECTED' && !comment.trim()) {
-      Alert.alert('Ошибка', 'Укажите причину отклонения');
+      Alert.alert(t("common.error"), t("ui.enter_the_rejection_reason"));
       return;
     }
     setBusy(true);
@@ -48,7 +51,7 @@ function DeviationDetailInner({ deviation }: { deviation: Deviation }) {
       setComment('');
     } catch (err: any) {
       console.error('[Deviation] Ошибка решения:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось сохранить решение');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_save_the_decision"));
     } finally {
       setBusy(false);
     }
@@ -59,7 +62,7 @@ function DeviationDetailInner({ deviation }: { deviation: Deviation }) {
     try {
       await updateLocalRecord(deviation, (r: any) => { r.status = 'IMPLEMENTED'; });
     } catch (err: any) {
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось обновить');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_update"));
     } finally {
       setBusy(false);
     }
@@ -68,12 +71,12 @@ function DeviationDetailInner({ deviation }: { deviation: Deviation }) {
   return (
     <View style={styles.container}>
       <ScreenHeader
-        title={deviation.number || 'Отклонение'}
-        subtitle={label(DEVIATION_CATEGORY_LABELS, deviation.category)}
+        title={deviation.number || t("ui.deviation")}
+        subtitle={label(DEVIATION_CATEGORY_LABELS, deviation.category, language)}
         onBack={() => navigation.goBack()}
         right={
           <Badge tone={toneOf(DEVIATION_STATUS_TONES, deviation.status)}>
-            {label(DEVIATION_STATUS_LABELS, deviation.status)}
+            {label(DEVIATION_STATUS_LABELS, deviation.status, language)}
           </Badge>
         }
       />
@@ -83,51 +86,51 @@ function DeviationDetailInner({ deviation }: { deviation: Deviation }) {
           <Text style={styles.title}>{deviation.title}</Text>
           {deviation.reason ? (
             <>
-              <Text style={styles.blockLabel}>Обоснование</Text>
+              <Text style={styles.blockLabel}>{t("ui.justification")}</Text>
               <Text style={styles.blockText}>{deviation.reason}</Text>
             </>
           ) : null}
           {deviation.proposedSolution ? (
             <>
-              <Text style={styles.blockLabel}>Предлагаемое решение</Text>
+              <Text style={styles.blockLabel}>{t("ui.proposed_solution")}</Text>
               <Text style={styles.blockText}>{deviation.proposedSolution}</Text>
             </>
           ) : null}
           {deviation.description ? (
             <>
-              <Text style={styles.blockLabel}>Подробности</Text>
+              <Text style={styles.blockLabel}>{t("ui.details")}</Text>
               <Text style={styles.blockText}>{deviation.description}</Text>
             </>
           ) : null}
         </Card>
 
         <Card>
-          <InfoRow label="Запросил" value={deviation.requestedByName || '—'} />
-          <InfoRow label="Создано" value={formatSmartDate(deviation.requestedAt)} />
+          <InfoRow label={t("ui.requested_by")} value={deviation.requestedByName || '—'} />
+          <InfoRow label={t("ui.created")} value={formatSmartDate(deviation.requestedAt, language)} />
           {deviation.decidedAt ? (
-            <InfoRow label="Решение" value={formatSmartDate(deviation.decidedAt)} />
+            <InfoRow label={t("ui.decision")} value={formatSmartDate(deviation.decidedAt, language)} />
           ) : null}
         </Card>
 
         {deviation.decisionComment ? (
           <Card>
-            <Text style={styles.blockLabel}>Комментарий к решению</Text>
+            <Text style={styles.blockLabel}>{t("ui.decision_comment")}</Text>
             <Text style={styles.blockText}>{deviation.decisionComment}</Text>
           </Card>
         ) : null}
 
         {deviation.status === 'PENDING' && canDecide ? (
           <>
-            <Field label="Комментарий">
+            <Field label={t("report.comment")}>
               <TextField
                 value={comment}
                 onChangeText={setComment}
-                placeholder="Условия согласования или причина отказа"
+                placeholder={t("ui.approval_conditions_or_reason_for_refusal")}
                 multiline
               />
             </Field>
             <PrimaryButton
-              label="Согласовать"
+              label={t("ui.approve_079c0")}
               icon="check-circle-outline"
               tone="success"
               onPress={() => decide('APPROVED')}
@@ -135,7 +138,7 @@ function DeviationDetailInner({ deviation }: { deviation: Deviation }) {
             />
             <View style={styles.gap} />
             <SecondaryButton
-              label="Отклонить"
+              label={t("ui.reject")}
               icon="close-circle-outline"
               onPress={() => decide('REJECTED')}
             />
@@ -143,12 +146,12 @@ function DeviationDetailInner({ deviation }: { deviation: Deviation }) {
         ) : null}
 
         {deviation.status === 'PENDING' && !canDecide ? (
-          <Text style={styles.waitText}>Ожидает решения технической службы</Text>
+          <Text style={styles.waitText}>{t("ui.awaiting_the_technical_team_s_decision")}</Text>
         ) : null}
 
         {deviation.status === 'APPROVED' ? (
           <PrimaryButton
-            label="Отметить как реализованное"
+            label={t("ui.mark_as_implemented")}
             icon="check-all"
             onPress={markImplemented}
             loading={busy}
@@ -162,6 +165,7 @@ function DeviationDetailInner({ deviation }: { deviation: Deviation }) {
 const Enhanced = enhance(DeviationDetailInner as any);
 
 export default function DeviationDetailScreen() {
+  const { t } = useTranslation();
   const route = useRoute<any>();
   const navigation = useNavigation();
   const deviationId: string | undefined = route.params?.deviationId;
@@ -169,8 +173,8 @@ export default function DeviationDetailScreen() {
   if (!deviationId) {
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Ошибка" onBack={() => navigation.goBack()} />
-        <EmptyState icon="alert-circle-outline" title="Отклонение не найдено" />
+        <ScreenHeader title={t("common.error")} onBack={() => navigation.goBack()} />
+        <EmptyState icon="alert-circle-outline" title={t("ui.deviation_not_found")} />
       </View>
     );
   }

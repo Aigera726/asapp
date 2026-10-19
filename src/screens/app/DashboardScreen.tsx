@@ -245,7 +245,7 @@ function DashboardScreen({
         <View style={[styles.headerInner, { paddingHorizontal: pagePadding }]}>
           <View style={styles.headerLeft}>
             <View style={styles.brandRow}><View style={styles.brandMark}><Icon name="cube-outline" size={21} color="#FFFFFF" /></View><Text style={styles.brandText}>AS<Text style={{ color: E.blue }}> APP</Text></Text></View>
-            {roomy && <View style={styles.orgBlock}><Text style={styles.orgLabel}>{t('home.organization')}</Text><Text style={styles.account} numberOfLines={1}>{contractorName || 'AS Group'}</Text></View>}
+            {roomy && <View style={styles.orgBlock}><Text style={styles.orgLabel}>{t('home.organization')}</Text><Text style={styles.account} numberOfLines={1}>{isDemoMode ? t('home.demo') : contractorName || 'AS Group'}</Text></View>}
           </View>
           {roomy && <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.refresh')} disabled={refreshing || isDemoMode} onPress={() => onRefresh()} style={styles.refreshBtn}>{refreshing ? <ActivityIndicator color={E.blue} /> : <Icon name="refresh" size={20} color={isDemoMode ? '#A2AAB7' : E.muted} />}</TouchableOpacity>}
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.profile', { name: accountName, role: accountRole })} onPress={() => navigation.navigate('Profile')} style={[styles.profileBtn, !roomy && styles.profileCompact]} activeOpacity={0.75}>
@@ -254,7 +254,7 @@ function DashboardScreen({
             {roomy && <Icon name="chevron-down" size={17} color={E.muted} />}
           </TouchableOpacity>
         </View>
-        {!roomy && <View style={styles.mobileOrg}><Icon name="domain" size={13} color={E.muted} /><Text numberOfLines={1} style={styles.mobileOrgText}>{contractorName || 'AS Group'}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.refresh')} disabled={refreshing || isDemoMode} onPress={() => onRefresh()} style={styles.mobileRefresh}>{refreshing ? <ActivityIndicator size="small" color={E.blue} /> : <Icon name="refresh" size={17} color={E.muted} />}</TouchableOpacity></View>}
+        {!roomy && <View style={styles.mobileOrg}><Icon name="domain" size={13} color={E.muted} /><Text numberOfLines={1} style={styles.mobileOrgText}>{isDemoMode ? t('home.demo') : contractorName || 'AS Group'}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.refresh')} disabled={refreshing || isDemoMode} onPress={() => onRefresh()} style={styles.mobileRefresh}>{refreshing ? <ActivityIndicator size="small" color={E.blue} /> : <Icon name="refresh" size={17} color={E.muted} />}</TouchableOpacity></View>}
       </View>
 
       <FlatList

@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { uiLabel } from "@/i18n/ui-labels";
+
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -67,6 +70,7 @@ const STATUS_LABEL = {
 };
 
 export default function AdminAccessScreen() {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
   const [tab, setTab] = useState<Tab>('REQUESTS');
 
@@ -84,7 +88,7 @@ export default function AdminAccessScreen() {
   const loadLinks = useCallback(async () => {
     const { data, error } = await supabase.schema('mobile').rpc('admin_list_links');
     if (error) {
-      Alert.alert('Ошибка', error.message);
+      Alert.alert(t("common.error"), error.message);
       return;
     }
     const rows = (data as LinkRow[]) ?? [];
@@ -104,7 +108,7 @@ export default function AdminAccessScreen() {
       .schema('mobile')
       .rpc('admin_list_users', { p_search: search || null });
     if (error) {
-      Alert.alert('Ошибка', error.message);
+      Alert.alert(t("common.error"), error.message);
       return;
     }
     setUsers((data as UserRow[]) ?? []);
@@ -115,7 +119,7 @@ export default function AdminAccessScreen() {
       .schema('mobile')
       .rpc('admin_list_contractors', { p_search: search || null });
     if (error) {
-      Alert.alert('Ошибка', error.message);
+      Alert.alert(t("common.error"), error.message);
       return;
     }
     setContractors((data as ContractorRow[]) ?? []);
@@ -150,7 +154,7 @@ export default function AdminAccessScreen() {
         p_comment: null,
       });
       if (error) {
-        Alert.alert('Ошибка', error.message);
+        Alert.alert(t("common.error"), error.message);
         return;
       }
       await loadLinks();
@@ -161,12 +165,12 @@ export default function AdminAccessScreen() {
 
   const revoke = (row: LinkRow) => {
     Alert.alert(
-      'Отозвать доступ',
-      `${row.email ?? 'Пользователь'} потеряет доступ к работам «${row.company_name ?? '—'}».`,
+      t("ui.revoke_access"),
+      t("ui.value_will_lose_access_to_work_for_value", { p0: row.email ?? t("home.user"), p1: row.company_name ?? '—' }),
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t("common.cancel"), style: 'cancel' },
         {
-          text: 'Отозвать',
+          text: t("ui.revoke"),
           style: 'destructive',
           onPress: async () => {
             const { error } = await supabase
@@ -175,7 +179,7 @@ export default function AdminAccessScreen() {
                 p_profile_id: row.profile_id,
                 p_contractor_id: row.contractor_id,
               });
-            if (error) Alert.alert('Ошибка', error.message);
+            if (error) Alert.alert(t("common.error"), error.message);
             else await loadLinks();
           },
         },
@@ -190,12 +194,12 @@ export default function AdminAccessScreen() {
       p_contractor_id: contractor.id,
     });
     if (error) {
-      Alert.alert('Ошибка', error.message);
+      Alert.alert(t("common.error"), error.message);
       return;
     }
     Alert.alert(
-      'Назначено',
-      `${selectedUser.email ?? 'Пользователь'} → ${contractor.company_name ?? '—'}`
+      t("ui.assigned"),
+      `${selectedUser.email ?? t("home.user")} → ${contractor.company_name ?? '—'}`
     );
     setSelectedUser(null);
     setContractorSearch('');
@@ -215,7 +219,7 @@ export default function AdminAccessScreen() {
           </Text>
           <View style={[styles.badge, { backgroundColor: tone.bg }]}>
             <Text style={[styles.badgeText, { color: tone.text }]}>
-              {STATUS_LABEL[item.status]}
+              {uiLabel(STATUS_LABEL[item.status], language)}
             </Text>
           </View>
         </View>
@@ -223,10 +227,10 @@ export default function AdminAccessScreen() {
         {item.full_name ? <Text style={styles.name}>{item.full_name}</Text> : null}
 
         <Text style={styles.company}>
-          {item.company_name ?? '— организация не найдена —'}
-          {item.bin_iin ? ` · БИН ${item.bin_iin}` : ''}
+          {item.company_name ?? t("ui.organization_not_found")}
+          {item.bin_iin ? t("ui.bin_value", { p0: item.bin_iin }) : ''}
         </Text>
-        <Text style={styles.meta}>Заявка от {formatSmartDate(new Date(item.requested_at))}</Text>
+        <Text style={styles.meta}>{t("ui.request_from")}{' '}{formatSmartDate(new Date(item.requested_at), language)}</Text>
 
         <View style={styles.actions}>
           {item.status === 'PENDING' ? (
@@ -240,7 +244,7 @@ export default function AdminAccessScreen() {
                 {busyKey === key ? (
                   <ActivityIndicator color={T.colors.textOnBrand} size="small" />
                 ) : (
-                  <Text style={styles.approveText}>Подтвердить</Text>
+                  <Text style={styles.approveText}>{t("ui.confirm")}</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity
@@ -249,7 +253,7 @@ export default function AdminAccessScreen() {
                 disabled={busyKey === key}
                 activeOpacity={0.8}
               >
-                <Text style={styles.rejectText}>Отклонить</Text>
+                <Text style={styles.rejectText}>{t("ui.reject")}</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -258,7 +262,7 @@ export default function AdminAccessScreen() {
               onPress={() => revoke(item)}
               activeOpacity={0.8}
             >
-              <Text style={styles.rejectText}>Отозвать доступ</Text>
+              <Text style={styles.rejectText}>{t("ui.revoke_access")}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -274,11 +278,11 @@ export default function AdminAccessScreen() {
             style={styles.search}
             value={userSearch}
             onChangeText={setUserSearch}
-            placeholder="Поиск по email или ФИО"
+            placeholder={t("ui.search_by_email_or_full_name")}
             placeholderTextColor={T.colors.textMuted}
             autoCapitalize="none"
           />
-          <Text style={styles.sectionHint}>Шаг 1 — выберите пользователя</Text>
+          <Text style={styles.sectionHint}>{t("ui.step_1_select_a_user")}</Text>
           {users.map((u) => (
             <TouchableOpacity key={u.id} onPress={() => setSelectedUser(u)} activeOpacity={0.7}>
               <Card>
@@ -286,13 +290,13 @@ export default function AdminAccessScreen() {
                 {u.full_name ? <Text style={styles.name}>{u.full_name}</Text> : null}
                 <Text style={styles.meta}>
                   {u.linked_count > 0
-                    ? `Уже привязан к ${u.linked_count} организации(ям)`
-                    : 'Без организации'}
+                    ? t("ui.already_linked_to_value_organization_s", { p0: u.linked_count })
+                    : t("ui.no_organization")}
                 </Text>
               </Card>
             </TouchableOpacity>
           ))}
-          {users.length === 0 ? <EmptyState icon="account-search-outline" title="Никого не найдено" /> : null}
+          {users.length === 0 ? <EmptyState icon="account-search-outline" title={t("ui.no_users_found")} /> : null}
         </>
       );
     }
@@ -303,7 +307,7 @@ export default function AdminAccessScreen() {
           <Icon name="account-check-outline" size={18} color={T.colors.primary} />
           <View style={{ flex: 1 }}>
             <Text style={styles.selectedUserText}>{selectedUser.email}</Text>
-            <Text style={styles.meta}>Нажмите, чтобы выбрать другого</Text>
+            <Text style={styles.meta}>{t("ui.tap_to_choose_someone_else")}</Text>
           </View>
         </TouchableOpacity>
 
@@ -311,23 +315,22 @@ export default function AdminAccessScreen() {
           style={styles.search}
           value={contractorSearch}
           onChangeText={setContractorSearch}
-          placeholder="Поиск организации по названию или БИН"
+          placeholder={t("ui.search_organization_by_name_or_bin")}
           placeholderTextColor={T.colors.textMuted}
         />
-        <Text style={styles.sectionHint}>Шаг 2 — выберите организацию</Text>
+        <Text style={styles.sectionHint}>{t("ui.step_2_select_an_organization")}</Text>
         {contractors.map((c) => (
           <TouchableOpacity key={c.id} onPress={() => assign(c)} activeOpacity={0.7}>
             <Card>
               <Text style={styles.email}>{c.company_name ?? '—'}</Text>
               <Text style={styles.meta}>
-                {c.bin_iin ? `БИН ${c.bin_iin} · ` : ''}
-                пользователей: {c.users_count}
+                {c.bin_iin ? t("ui.bin_value_875a6", { p0: c.bin_iin }) : ''}{t("ui.users")}{' '}{c.users_count}
               </Text>
             </Card>
           </TouchableOpacity>
         ))}
         {contractors.length === 0 ? (
-          <EmptyState icon="office-building-outline" title="Организаций не найдено" />
+          <EmptyState icon="office-building-outline" title={t("ui.no_organizations_found")} />
         ) : null}
       </>
     );
@@ -336,8 +339,8 @@ export default function AdminAccessScreen() {
   return (
     <View style={styles.container}>
       <ScreenHeader
-        title="Управление доступом"
-        subtitle="Заявки подрядчиков и назначение организаций"
+        title={t("ui.access_management")}
+        subtitle={t("ui.contractor_requests_and_organization_assignment")}
         onBack={() => navigation.goBack()}
       />
 
@@ -346,8 +349,8 @@ export default function AdminAccessScreen() {
           value={tab}
           onChange={setTab}
           items={[
-            { value: 'REQUESTS', label: 'Заявки', count: pendingCount },
-            { value: 'ASSIGN', label: 'Назначить' },
+            { value: 'REQUESTS', label: t("ui.requests"), count: pendingCount },
+            { value: 'ASSIGN', label: t("ui.assign") },
           ]}
         />
       </View>
@@ -361,7 +364,7 @@ export default function AdminAccessScreen() {
           renderItem={renderLink}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={false} onRefresh={loadLinks} />}
-          ListEmptyComponent={<EmptyState icon="inbox-outline" title="Заявок нет" />}
+          ListEmptyComponent={<EmptyState icon="inbox-outline" title={t("ui.no_requests")} />}
         />
       ) : (
         <FlatList

@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+
+import { LOCALES } from '@/i18n/work';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -46,6 +49,7 @@ const enhance = withObservables(
  * жизненный цикл нигде не был выражен — статус можно было только смотреть.
  */
 function PrescriptionDetailInner({ prescription }: { prescription: Prescription }) {
+  const { language, t } = useTranslation();
   const navigation = useNavigation();
   const { role } = useAuthStore();
   const [comment, setComment] = useState('');
@@ -59,7 +63,7 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
     opts: { requireComment?: boolean; stamp?: 'resolved' | 'closed' } = {}
   ) => {
     if (opts.requireComment && !comment.trim()) {
-      Alert.alert('Ошибка', 'Заполните комментарий');
+      Alert.alert(t("common.error"), t("ui.enter_a_comment"));
       return;
     }
     setBusy(true);
@@ -73,7 +77,7 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
       setComment('');
     } catch (err: any) {
       console.error('[Prescription] Ошибка смены статуса:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось обновить предписание');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_update_the_notice"));
     } finally {
       setBusy(false);
     }
@@ -84,12 +88,12 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
   return (
     <View style={styles.container}>
       <ScreenHeader
-        title={prescription.number || 'Предписание'}
-        subtitle={label(PRESCRIPTION_STATUS_LABELS, status)}
+        title={prescription.number || t("home.prescription")}
+        subtitle={label(PRESCRIPTION_STATUS_LABELS, status, language)}
         onBack={() => navigation.goBack()}
         right={
           <Badge tone={toneOf(PRESCRIPTION_STATUS_TONES, status)}>
-            {label(PRESCRIPTION_STATUS_LABELS, status)}
+            {label(PRESCRIPTION_STATUS_LABELS, status, language)}
           </Badge>
         }
       />
@@ -97,8 +101,7 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {late ? (
           <Card style={styles.alert}>
-            <Text style={styles.alertText}>
-              Срок устранения истёк {prescription.dueAt?.toLocaleDateString('ru-RU')}
+            <Text style={styles.alertText}>{t("ui.correction_deadline_expired_on")}{' '}{prescription.dueAt?.toLocaleDateString('ru-RU')}
             </Text>
           </Card>
         ) : null}
@@ -107,52 +110,52 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
           <Text style={styles.title}>{prescription.title}</Text>
           <View style={styles.badgeRow}>
             <Badge tone={toneOf(SEVERITY_TONES, prescription.severity)}>
-              {label(SEVERITY_LABELS, prescription.severity)}
+              {label(SEVERITY_LABELS, prescription.severity, language)}
             </Badge>
           </View>
           {prescription.requirement ? (
             <>
-              <Text style={styles.blockLabel}>Требуется устранить</Text>
+              <Text style={styles.blockLabel}>{t("ui.correction_required")}</Text>
               <Text style={styles.blockText}>{prescription.requirement}</Text>
             </>
           ) : null}
           {prescription.description ? (
             <>
-              <Text style={styles.blockLabel}>Подробности</Text>
+              <Text style={styles.blockLabel}>{t("ui.details")}</Text>
               <Text style={styles.blockText}>{prescription.description}</Text>
             </>
           ) : null}
         </Card>
 
         <Card>
-          <InfoRow label="Выдал" value={prescription.issuedByName || '—'} />
-          <InfoRow label="Выдано" value={formatSmartDate(prescription.issuedAt)} />
+          <InfoRow label={t("ui.issued_by")} value={prescription.issuedByName || '—'} />
+          <InfoRow label={t("ui.issued")} value={formatSmartDate(prescription.issuedAt, language)} />
           <InfoRow
-            label="Срок"
-            value={prescription.dueAt ? prescription.dueAt.toLocaleDateString('ru-RU') : '—'}
+            label={t("ui.due_date")}
+            value={prescription.dueAt ? prescription.dueAt.toLocaleDateString(LOCALES[language]) : '—'}
           />
           {prescription.resolvedAt ? (
-            <InfoRow label="Предъявлено" value={formatSmartDate(prescription.resolvedAt)} />
+            <InfoRow label={t("ui.submitted_for_verification")} value={formatSmartDate(prescription.resolvedAt, language)} />
           ) : null}
           {prescription.closedAt ? (
-            <InfoRow label="Закрыто" value={formatSmartDate(prescription.closedAt)} />
+            <InfoRow label={t("ui.closed")} value={formatSmartDate(prescription.closedAt, language)} />
           ) : null}
         </Card>
 
         {prescription.resolutionComment ? (
           <Card>
-            <Text style={styles.blockLabel}>Отчёт об устранении</Text>
+            <Text style={styles.blockLabel}>{t("ui.correction_report")}</Text>
             <Text style={styles.blockText}>{prescription.resolutionComment}</Text>
           </Card>
         ) : null}
 
         {status === 'CLOSED' || status === 'VERIFIED' ? null : (
           <>
-            <Field label="Комментарий">
+            <Field label={t("report.comment")}>
               <TextField
                 value={comment}
                 onChangeText={setComment}
-                placeholder="Что сделано / почему возвращено"
+                placeholder={t("ui.what_was_done_why_it_was_returned")}
                 multiline
               />
             </Field>
@@ -160,7 +163,7 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
             <View style={styles.actions}>
               {status === 'OPEN' ? (
                 <PrimaryButton
-                  label="Принять в работу"
+                  label={t("ui.start_work")}
                   icon="progress-wrench"
                   onPress={() => transition('IN_PROGRESS')}
                   loading={busy}
@@ -169,7 +172,7 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
 
               {status === 'IN_PROGRESS' || status === 'REJECTED' ? (
                 <PrimaryButton
-                  label="Предъявить к проверке"
+                  label={t("ui.submit_for_verification")}
                   icon="clipboard-check-outline"
                   onPress={() => transition('SUBMITTED', { requireComment: true, stamp: 'resolved' })}
                   loading={busy}
@@ -179,7 +182,7 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
               {status === 'SUBMITTED' && isSupervisor ? (
                 <>
                   <PrimaryButton
-                    label="Принять устранение"
+                    label={t("ui.accept_correction")}
                     icon="check-circle-outline"
                     tone="success"
                     onPress={() => transition('VERIFIED', { stamp: 'closed' })}
@@ -187,7 +190,7 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
                   />
                   <View style={styles.gap} />
                   <SecondaryButton
-                    label="Вернуть на доработку"
+                    label={t("ui.return_for_revision")}
                     icon="close-circle-outline"
                     onPress={() => transition('REJECTED', { requireComment: true })}
                   />
@@ -195,7 +198,7 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
               ) : null}
 
               {status === 'SUBMITTED' && !isSupervisor ? (
-                <Text style={styles.waitText}>Ожидает проверки технадзора</Text>
+                <Text style={styles.waitText}>{t("ui.awaiting_technical_supervision_verification")}</Text>
               ) : null}
             </View>
           </>
@@ -208,6 +211,7 @@ function PrescriptionDetailInner({ prescription }: { prescription: Prescription 
 const Enhanced = enhance(PrescriptionDetailInner as any);
 
 export default function PrescriptionDetailScreen() {
+  const { t } = useTranslation();
   const route = useRoute<any>();
   const navigation = useNavigation();
   const prescriptionId: string | undefined = route.params?.prescriptionId;
@@ -215,8 +219,8 @@ export default function PrescriptionDetailScreen() {
   if (!prescriptionId) {
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Ошибка" onBack={() => navigation.goBack()} />
-        <EmptyState icon="alert-circle-outline" title="Предписание не найдено" />
+        <ScreenHeader title={t("common.error")} onBack={() => navigation.goBack()} />
+        <EmptyState icon="alert-circle-outline" title={t("ui.corrective_notice_not_found")} />
       </View>
     );
   }

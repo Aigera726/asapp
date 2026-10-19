@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { currentText, currentLanguage } from "@/i18n/ui-labels";
+
 import { ScreenHeader } from '@/components/ui';
 import React from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
@@ -24,6 +27,7 @@ interface Props {
 }
 
 const AcceptanceListScreen = ({ orders }: Props) => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
 
   const renderOrder = ({ item }: { item: PurchaseOrder }) => {
@@ -35,14 +39,14 @@ const AcceptanceListScreen = ({ orders }: Props) => {
         activeOpacity={0.7}
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Заказ #{item.invoiceNumber || item.id.slice(0, 8)}</Text>
+          <Text style={styles.cardTitle}>{currentText("ui.order")}{item.invoiceNumber || item.id.slice(0, 8)}</Text>
           <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-            <Text style={[styles.badgeText, { color: sc.text }]}>{getStatusLabel(item.status)}</Text>
+            <Text style={[styles.badgeText, { color: sc.text }]}>{getStatusLabel(item.status, currentLanguage())}</Text>
           </View>
         </View>
-      <Text style={styles.cardSubtext}>Ожидается приемка материалов</Text>
+      <Text style={styles.cardSubtext}>{currentText("ui.material_receipt_pending")}</Text>
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Нажмите для начала входящего контроля</Text>
+        <Text style={styles.footerText}>{currentText("ui.tap_to_start_incoming_inspection")}</Text>
         <Text style={styles.arrow}>›</Text>
       </View>
     </TouchableOpacity>
@@ -51,7 +55,7 @@ const AcceptanceListScreen = ({ orders }: Props) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScreenHeader title="Приёмка грузов" subtitle="Входящий контроль поставок" onBack={() => navigation.goBack()} />
+      <ScreenHeader title={t("ui.delivery_acceptance")} subtitle={t("ui.incoming_delivery_inspection")} onBack={() => navigation.goBack()} />
 
       <FlatList
         data={orders}
@@ -60,7 +64,7 @@ const AcceptanceListScreen = ({ orders }: Props) => {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>Активных заказов для приемки нет</Text>
+            <Text style={styles.emptyText}>{currentText("ui.no_active_orders_awaiting_receipt")}</Text>
           </View>
         }
       />

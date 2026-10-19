@@ -1,3 +1,5 @@
+import { useTranslation } from '@/i18n';
+
 import { ScreenHeader } from '@/components/ui';
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
@@ -12,6 +14,7 @@ import { getRoleLabel } from '@/lib/roleLabels';
 import { Icon } from '@/components/Icon';
 
 export default function ProfileScreen() {
+  const { language, t } = useTranslation();
   const {
     user,
     role,
@@ -47,7 +50,7 @@ export default function ProfileScreen() {
 
     const trimmedName = fullName.trim();
     if (!trimmedName) {
-      notify('Ошибка', 'Укажите ФИО');
+      notify(t("common.error"), t("ui.enter_your_full_name"));
       return;
     }
 
@@ -68,9 +71,9 @@ export default function ProfileScreen() {
       // Иначе в сторе осталось бы старое имя до перезахода.
       await fetchProfile({ force: true });
       setEdited(false);
-      notify('Успешно', 'Профиль обновлён');
+      notify(t("connection.success"), t("ui.profile_updated"));
     } catch (e: any) {
-      notify('Ошибка', e?.message ?? 'Не удалось сохранить профиль');
+      notify(t("common.error"), e?.message ?? t("ui.could_not_save_the_profile"));
     } finally {
       setSaving(false);
     }
@@ -78,15 +81,15 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScreenHeader title="Профиль" subtitle="Учётная запись и настройки" onBack={() => navigation.goBack()} right={
-        <TouchableOpacity accessibilityLabel="Настройки подключения" onPress={() => navigation.navigate('ConnectionSetup')}>
+      <ScreenHeader title={t("ui.profile")} subtitle={t("ui.account_and_settings")} onBack={() => navigation.goBack()} right={
+        <TouchableOpacity accessibilityLabel={t("login.connection")} onPress={() => navigation.navigate('ConnectionSetup')}>
           <Icon name="cog-outline" size={22} color={T.colors.primary} />
         </TouchableOpacity>
       } />
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.label}>ФИО</Text>
+          <Text style={styles.label}>{t("ui.full_name")}</Text>
           <TextInput
             style={styles.input}
             value={fullName}
@@ -94,19 +97,19 @@ export default function ProfileScreen() {
               setEdited(true);
               setFullName(t);
             }}
-            placeholder="Иван Иванов"
+            placeholder={t("ui.john_smith")}
             placeholderTextColor={T.colors.textDisabled}
           />
 
-          <Text style={styles.label}>РОЛЬ</Text>
+          <Text style={styles.label}>{t("ui.role")}</Text>
           <View style={styles.readonlyInput}>
-            <Text style={styles.readonlyText}>{getRoleLabel(role)}</Text>
+            <Text style={styles.readonlyText}>{getRoleLabel(role, language)}</Text>
           </View>
         </View>
 
         {contractorId && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Реквизиты компании</Text>
+            <Text style={styles.cardTitle}>{t("ui.company_details")}</Text>
 
             {/* Только чтение — и это не упрощение, а исправление.
                 erp.contractors принадлежит УСП и закрыта RLS: прежний update
@@ -114,20 +117,17 @@ export default function ProfileScreen() {
                 проваливался. Плюс bin_iin служит вторым фактором при привязке
                 к контрагенту (mobile.link_contractor), поэтому менять его из
                 приложения нельзя — иначе проверка обходится изнутри. */}
-            <Text style={styles.label}>НАЗВАНИЕ КОМПАНИИ</Text>
+            <Text style={styles.label}>{t("ui.company_name")}</Text>
             <View style={styles.readonlyInput}>
               <Text style={styles.readonlyText}>{contractorName ?? '—'}</Text>
             </View>
 
-            <Text style={styles.label}>БИН / ИИН</Text>
+            <Text style={styles.label}>{t("ui.bin_iin")}</Text>
             <View style={styles.readonlyInput}>
               <Text style={styles.readonlyText}>{contractorBin || '—'}</Text>
             </View>
 
-            <Text style={styles.hint}>
-              Реквизиты организации заводятся в УСП вместе с договором.
-              Изменить их из приложения нельзя — обратитесь к ПТО.
-            </Text>
+            <Text style={styles.hint}>{t("ui.organization_details_are_entered_in_usp_with_the_contract")}{' '}</Text>
           </View>
         )}
 
@@ -136,11 +136,11 @@ export default function ProfileScreen() {
           onPress={handleSave}
           disabled={saving}
         >
-          <Text style={styles.primaryButtonText}>{saving ? 'Сохранение...' : 'Сохранить изменения'}</Text>
+          <Text style={styles.primaryButtonText}>{saving ? t("ui.saving") : t("ui.save_changes")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.secondaryButton} onPress={signOut}>
-          <Text style={styles.secondaryButtonText}>Выйти из аккаунта</Text>
+          <Text style={styles.secondaryButtonText}>{t("onboarding.signOut")}</Text>
         </TouchableOpacity>
 
         {/* Кнопки удаления здесь больше нет.
@@ -152,12 +152,8 @@ export default function ProfileScreen() {
             mobile пока нет. Честная подпись лучше кнопки, которая делает
             вид, что работает. */}
         <View style={styles.dangerZone}>
-          <Text style={styles.dangerTitle}>Удаление аккаунта</Text>
-          <Text style={styles.hint}>
-            Аккаунт удаляет администратор — из приложения это сделать нельзя.
-            Обратитесь к нему; доступ к работам можно отозвать сразу, не
-            удаляя учётную запись.
-          </Text>
+          <Text style={styles.dangerTitle}>{t("ui.account_deletion")}</Text>
+          <Text style={styles.hint}>{t("ui.only_an_administrator_can_delete_an_account_contact_them")}{' '}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

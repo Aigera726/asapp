@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { currentText, currentLanguage } from "@/i18n/ui-labels";
+
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -11,6 +14,7 @@ import { getStatusLabel, getStatusColor } from '@/lib/statusLabels';
 import { formatSmartDate } from '@/lib/formatDate';
 import { T } from '@/theme';
 import { Icon } from '@/components/Icon';
+import { useResourceDisplay } from '@/hooks/useResourceDisplay';
 
 // ─── Enhanced (observable) detail component ─────────────────────────────────
 interface EnhancedProps {
@@ -25,6 +29,8 @@ const enhance = withObservables(['requestId'], ({ requestId }: { requestId: stri
 }));
 
 const RequestDetailInner = ({ request, items }: EnhancedProps) => {
+  const { t } = useTranslation();
+  const display = useResourceDisplay();
   const navigation = useNavigation();
 
   const isSynced = (request as any)._raw._status === 'synced';
@@ -32,12 +38,12 @@ const RequestDetailInner = ({ request, items }: EnhancedProps) => {
 
   const handleDelete = async () => {
     Alert.alert(
-      'Удалить заявку?',
-      'Это действие нельзя отменить.',
+      t("ui.delete_request"),
+      t("ui.this_action_cannot_be_undone"),
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t("common.cancel"), style: 'cancel' },
         {
-          text: 'Удалить',
+          text: t("ui.delete"),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -51,7 +57,7 @@ const RequestDetailInner = ({ request, items }: EnhancedProps) => {
               navigation.goBack();
             } catch (err) {
               console.error('[RequestDetail] Delete error:', err);
-              Alert.alert('Ошибка', 'Не удалось удалить заявку');
+              Alert.alert(t("common.error"), t("ui.could_not_delete_the_request"));
             }
           },
         },
@@ -66,9 +72,9 @@ const RequestDetailInner = ({ request, items }: EnhancedProps) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Text style={styles.backText}>‹ Назад</Text>
+          <Text style={styles.backText}>{currentText("ui.back")}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Детали заявки</Text>
+        <Text style={styles.title}>{currentText("ui.request_details")}</Text>
         {!isSynced && (
           <TouchableOpacity onPress={handleDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Icon name="trash-can-outline" size={20} color={T.colors.danger} />
@@ -82,28 +88,28 @@ const RequestDetailInner = ({ request, items }: EnhancedProps) => {
         <View style={styles.statusHero}>
           <View style={[styles.statusHeroBadge, { backgroundColor: sc.bg }]}>
             <Text style={[styles.statusHeroText, { color: sc.text }]}>
-              {getStatusLabel(request.status)}
+              {getStatusLabel(request.status, currentLanguage())}
             </Text>
           </View>
           <Text style={styles.requestTitle}>
-            {request.requestNumber ? `Заявка #${request.requestNumber}` : 'Новая заявка'}
+            {request.requestNumber ? t("ui.request_value", { p0: request.requestNumber }) : t("ui.new_request")}
           </Text>
-          <Text style={styles.requestDate}>{formatSmartDate(request.updatedAt)}</Text>
+          <Text style={styles.requestDate}>{formatSmartDate(request.updatedAt, currentLanguage())}</Text>
         </View>
 
         {/* Info cards */}
         <View style={styles.infoGrid}>
           <View style={styles.infoCard}>
             <Text style={styles.infoCardValue}>{items.length}</Text>
-            <Text style={styles.infoCardLabel}>Позиций</Text>
+            <Text style={styles.infoCardLabel}>{currentText("ui.items_58206")}</Text>
           </View>
           <View style={styles.infoCard}>
             <Text style={styles.infoCardValue}>{totalQty}</Text>
-            <Text style={styles.infoCardLabel}>Ед. всего</Text>
+            <Text style={styles.infoCardLabel}>{currentText("ui.total_units")}</Text>
           </View>
           <View style={styles.infoCard}>
             <View style={[styles.syncDot, { backgroundColor: isSynced ? T.colors.success : T.colors.warning }]} />
-            <Text style={styles.infoCardLabel}>{isSynced ? 'Синхр.' : 'Ожидает'}</Text>
+            <Text style={styles.infoCardLabel}>{isSynced ? t("ui.sync") : t("ui.pending")}</Text>
           </View>
         </View>
 
@@ -116,7 +122,7 @@ const RequestDetailInner = ({ request, items }: EnhancedProps) => {
         ) : null}
 
         {/* Items list */}
-        <Text style={styles.sectionTitle}>Позиции</Text>
+        <Text style={styles.sectionTitle}>{currentText("ui.items_a9f62")}</Text>
         {items.map((item, index) => {
           const progress = item.requestedQuantity > 0
             ? Math.min((item.receivedQuantity || 0) / item.requestedQuantity, 1)
@@ -128,8 +134,8 @@ const RequestDetailInner = ({ request, items }: EnhancedProps) => {
                 <Text style={styles.itemIndexText}>{index + 1}</Text>
               </View>
               <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{item.itemName || 'Неизвестный материал'}</Text>
-                <Text style={styles.itemUnit}>{item.unit || 'шт'}</Text>
+                <Text style={styles.itemName}>{display.name(item.resourceId, item.itemName || t("ui.unknown_material"))}</Text>
+                <Text style={styles.itemUnit}>{display.unit(item.resourceId, item.unit)}</Text>
                 {progress > 0 && (
                   <View style={styles.progressBar}>
                     <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
@@ -139,7 +145,7 @@ const RequestDetailInner = ({ request, items }: EnhancedProps) => {
               <View style={styles.itemQtyContainer}>
                 <Text style={styles.itemQty}>{item.requestedQuantity}</Text>
                 {(item.receivedQuantity || 0) > 0 && (
-                  <Text style={styles.itemReceived}>получено {item.receivedQuantity}</Text>
+                  <Text style={styles.itemReceived}>{currentText("ui.received")}{' '}{item.receivedQuantity}</Text>
                 )}
               </View>
             </View>
@@ -149,7 +155,7 @@ const RequestDetailInner = ({ request, items }: EnhancedProps) => {
         {items.length === 0 && (
           <View style={styles.empty}>
             <Icon name="inbox-outline" size={30} color={T.colors.textDisabled} />
-            <Text style={styles.emptyText}>Нет позиций</Text>
+            <Text style={styles.emptyText}>{currentText("ui.no_items")}</Text>
           </View>
         )}
       </ScrollView>
@@ -170,14 +176,14 @@ const RequestDetailScreen = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Text style={styles.backText}>‹ Назад</Text>
+            <Text style={styles.backText}>{currentText("ui.back")}</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Ошибка</Text>
+          <Text style={styles.title}>{currentText("common.error")}</Text>
           <View style={{ width: 30 }} />
         </View>
         <View style={styles.empty}>
           <Icon name="alert-circle-outline" size={30} color={T.colors.danger} />
-          <Text style={styles.emptyText}>Заявка не найдена</Text>
+          <Text style={styles.emptyText}>{currentText("ui.request_not_found")}</Text>
         </View>
       </SafeAreaView>
     );

@@ -74,7 +74,7 @@ export type AppStackParamList = {
 
   // Ресурсы
   MaterialForm: { projectId?: string; name?: string; unit?: string; resourceId?: string; type?: string };
-  MaterialHistory: { balanceKey: string; name: string; unit?: string; projectId?: string; context?: string; workName?: string };
+  MaterialHistory: { balanceKey: string; name: string; unit?: string; projectId?: string; context?: string; workName?: string; workId?: string | null };
   AssetForm: { kind?: string };
   AssetDetail: { assetId: string };
 

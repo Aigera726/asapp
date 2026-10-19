@@ -1,3 +1,5 @@
+import { useTranslation } from '@/i18n';
+
 import React from 'react';
 import {
   View,
@@ -16,6 +18,7 @@ import { Icon, IconName } from './Icon';
 import { T } from '@/theme';
 import { ECO as E } from '@/theme/ecopro';
 import type { Tone } from '@/lib/domain';
+import LanguageSelector from './LanguageSelector';
 
 /**
  * Базовые элементы интерфейса AS-APP.
@@ -44,13 +47,14 @@ export function ScreenHeader({
   /** Крупный заголовок — для корневых экранов вкладок. */
   large?: boolean;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.header, { paddingTop: onBack ? T.spacing.md : insets.top + T.spacing.md }]}>
       {onBack ? (
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Назад"
+          accessibilityLabel={t("common.back")}
           onPress={onBack}
           style={styles.backBtn}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -68,7 +72,7 @@ export function ScreenHeader({
           </Text>
         ) : null}
       </View>
-      {right ?? null}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>{right}<LanguageSelector /></View>
     </View>
   );
 }
@@ -152,6 +156,9 @@ export function Segmented<V extends string>({
         return (
           <TouchableOpacity
             key={it.value}
+            accessibilityRole="button"
+            accessibilityLabel={it.label}
+            accessibilityState={{ selected: active }}
             style={[styles.segment, active && styles.segmentActive]}
             onPress={() => onChange(it.value)}
             activeOpacity={0.8}
@@ -247,7 +254,7 @@ export function EmptyState({
       <Text style={styles.emptyTitle}>{title}</Text>
       {text ? <Text style={styles.emptyText}>{text}</Text> : null}
       {actionLabel && onAction ? (
-        <TouchableOpacity style={styles.emptyBtn} onPress={onAction} activeOpacity={0.8}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={actionLabel} style={styles.emptyBtn} onPress={onAction} activeOpacity={0.8}>
           <Text style={styles.emptyBtnText}>{actionLabel}</Text>
         </TouchableOpacity>
       ) : null}
@@ -256,6 +263,7 @@ export function EmptyState({
 }
 
 // ── Поля формы ───────────────────────────────────────────────────────────────
+const FieldLabelContext = React.createContext<string | undefined>(undefined);
 export function Field({
   label,
   required,
@@ -268,14 +276,14 @@ export function Field({
   children: React.ReactNode;
 }) {
   return (
-    <View style={styles.field}>
+    <FieldLabelContext.Provider value={label}><View style={styles.field}>
       <Text style={styles.fieldLabel}>
         {label}
         {required ? <Text style={styles.fieldRequired}> *</Text> : null}
       </Text>
       {children}
       {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
-    </View>
+    </View></FieldLabelContext.Provider>
   );
 }
 
@@ -283,9 +291,11 @@ export function TextField({
   multiline,
   ...props
 }: TextInputProps & { multiline?: boolean }) {
+  const fieldLabel = React.useContext(FieldLabelContext);
   return (
     <TextInput
       {...props}
+      accessibilityLabel={props.accessibilityLabel ?? fieldLabel}
       multiline={multiline}
       placeholderTextColor={T.colors.textDisabled}
       style={[styles.input, multiline && styles.inputMultiline, props.style]}
@@ -310,6 +320,9 @@ export function Choice<V extends string>({
         return (
           <TouchableOpacity
             key={o.value}
+            accessibilityRole="button"
+            accessibilityLabel={o.label}
+            accessibilityState={{ selected: active }}
             style={[styles.choice, active && styles.choiceActive]}
             onPress={() => onChange(o.value)}
             activeOpacity={0.8}
@@ -347,6 +360,8 @@ export function PrimaryButton({
   return (
     <TouchableOpacity
       style={[styles.primaryBtn, { backgroundColor: bg }, (disabled || loading) && styles.btnDisabled]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.85}
@@ -377,6 +392,8 @@ export function SecondaryButton({
   return (
     <TouchableOpacity
       style={[styles.secondaryBtn, disabled && styles.btnDisabled]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={onPress}
       disabled={disabled}
       activeOpacity={0.8}
@@ -393,6 +410,8 @@ export function Fab({ label, onPress, icon = 'plus' }: { label: string; onPress:
   return (
     <TouchableOpacity
       style={[styles.fab, { bottom: T.spacing.xl + insets.bottom }]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={onPress}
       activeOpacity={0.85}
     >

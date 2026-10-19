@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { uiLabel } from "@/i18n/ui-labels";
+
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -19,6 +22,7 @@ const DUE_OPTIONS = [
 ];
 
 export default function PrescriptionFormScreen() {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user, contractorId } = useAuthStore();
@@ -34,15 +38,15 @@ export default function PrescriptionFormScreen() {
 
   const handleSave = async () => {
     if (!projectId) {
-      Alert.alert('Ошибка', 'Выберите объект');
+      Alert.alert(t("common.error"), t("ui.select_a_site"));
       return;
     }
     if (!title.trim()) {
-      Alert.alert('Ошибка', 'Укажите суть нарушения');
+      Alert.alert(t("common.error"), t("ui.describe_the_violation"));
       return;
     }
     if (!requirement.trim()) {
-      Alert.alert('Ошибка', 'Укажите, что требуется устранить');
+      Alert.alert(t("common.error"), t("ui.specify_what_must_be_corrected"));
       return;
     }
 
@@ -72,7 +76,7 @@ export default function PrescriptionFormScreen() {
       navigation.goBack();
     } catch (err: any) {
       console.error('[PrescriptionForm] Ошибка сохранения:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось сохранить предписание');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_save_the_notice"));
     } finally {
       setSaving(false);
     }
@@ -80,43 +84,43 @@ export default function PrescriptionFormScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScreenHeader title="Предписание" onBack={() => navigation.goBack()} />
+      <ScreenHeader title={t("home.prescription")} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Field label="Объект" required>
+        <Field label={t("work.object")} required>
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
         </Field>
 
-        <Field label="Нарушение" required>
-          <TextField value={title} onChangeText={setTitle} placeholder="Отсутствует защитный слой бетона" />
+        <Field label={t("ui.violation")} required>
+          <TextField value={title} onChangeText={setTitle} placeholder={t("ui.insufficient_concrete_cover")} />
         </Field>
 
-        <Field label="Требуется устранить" required hint="Формулировка, по которой будет приниматься работа">
+        <Field label={t("ui.correction_required")} required hint={t("ui.the_acceptance_criterion_for_the_correction")}>
           <TextField
             value={requirement}
             onChangeText={setRequirement}
-            placeholder="Обеспечить защитный слой 30 мм согласно проекту"
+            placeholder={t("ui.provide_30_mm_concrete_cover_as_specified_in_the")}
             multiline
           />
         </Field>
 
-        <Field label="Критичность" required>
-          <Choice options={SEVERITY_OPTIONS} value={severity} onChange={setSeverity} />
+        <Field label={t("ui.severity")} required>
+          <Choice options={(SEVERITY_OPTIONS).map(option => ({ ...option, label: uiLabel(option.label, language) }))} value={severity} onChange={setSeverity} />
         </Field>
 
-        <Field label="Срок устранения" required>
-          <Choice options={DUE_OPTIONS} value={dueDays} onChange={setDueDays} />
+        <Field label={t("ui.correction_deadline")} required>
+          <Choice options={(DUE_OPTIONS).map(option => ({ ...option, label: uiLabel(option.label, language) }))} value={dueDays} onChange={setDueDays} />
         </Field>
 
-        <Field label="Подробности">
+        <Field label={t("ui.details")}>
           <TextField
             value={description}
             onChangeText={setDescription}
-            placeholder="Ссылки на нормы, участок, ось…"
+            placeholder={t("ui.standards_work_area_axis")}
             multiline
           />
         </Field>
 
-        <PrimaryButton label="Выдать предписание" icon="clipboard-alert-outline" onPress={handleSave} loading={saving} />
+        <PrimaryButton label={t("ui.issue_a_notice")} icon="clipboard-alert-outline" onPress={handleSave} loading={saving} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -480,8 +480,8 @@ function TasksScreen({ route }: Props) {
       {translationsUnavailable && <Text style={styles.pageSubtitle}>{t('catalogue.unavailable')}</Text>}
       {loadError && <View accessibilityRole="alert"><Text>{t('work.loadError')}</Text><TouchableOpacity accessibilityRole="button" onPress={() => { void loadAssignments(); }}><Text>{t('common.retry')}</Text></TouchableOpacity></View>}
       <View style={styles.filtersContainer}>
-        {renderFilterChips(objects, selectedObjectId, setSelectedObjectId, 'name', t('work.object'))}
-        {renderFilterChips(projects, selectedProjectId, setSelectedProjectId, 'name', t('work.project'))}
+        {renderFilterChips(objects, selectedObjectId, setSelectedObjectId, 'name', t('work.project'))}
+        {renderFilterChips(projects, selectedProjectId, setSelectedProjectId, 'name', t('work.object'))}
         {renderFilterChips(contracts, selectedContractId, setSelectedContractId, 'contractNumber', t('work.contract'))}
       </View>
     </>

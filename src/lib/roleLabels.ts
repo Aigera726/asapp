@@ -25,9 +25,10 @@ export function getRoleLabel(role: UserRole | string | null, language: Language 
  */
 export function getAccountSubtitle(
   contractorName: string | null,
-  role: UserRole | string | null
+  role: UserRole | string | null,
+  language: Language = 'ru'
 ): string {
   if (contractorName) return contractorName;
-  if (role) return getRoleLabel(role);
-  return 'Загрузка...';
+  if (role) return getRoleLabel(role, language);
+  return translate(language, 'common.loading');
 }

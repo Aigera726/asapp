@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { uiLabel } from "@/i18n/ui-labels";
+
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -15,6 +18,7 @@ const STATUS_OPTIONS = Object.entries(ASSET_STATUS_LABELS)
 
 /** Постановка на учёт техники, оборудования или инструмента. */
 export default function AssetFormScreen() {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const projects = useProjects();
@@ -31,7 +35,7 @@ export default function AssetFormScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Ошибка', 'Укажите наименование');
+      Alert.alert(t("common.error"), t("ui.enter_a_name"));
       return;
     }
 
@@ -50,7 +54,7 @@ export default function AssetFormScreen() {
       navigation.goBack();
     } catch (err: any) {
       console.error('[AssetForm] Ошибка сохранения:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось сохранить');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_save"));
     } finally {
       setSaving(false);
     }
@@ -61,52 +65,52 @@ export default function AssetFormScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScreenHeader title="Постановка на учёт" onBack={() => navigation.goBack()} />
+      <ScreenHeader title={t("ui.register_an_asset")} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Field label="Тип" required>
-          <Choice options={KIND_OPTIONS} value={kind} onChange={setKind} />
+        <Field label={t("ui.type")} required>
+          <Choice options={(KIND_OPTIONS).map(option => ({ ...option, label: uiLabel(option.label, language) }))} value={kind} onChange={setKind} />
         </Field>
 
-        <Field label="Наименование" required>
+        <Field label={t("ui.name")} required>
           <TextField
             value={name}
             onChangeText={setName}
-            placeholder={kind === 'MACHINERY' ? 'Экскаватор' : 'Перфоратор'}
+            placeholder={kind === 'MACHINERY' ? t("ui.excavator") : t("ui.rotary_hammer")}
           />
         </Field>
 
-        <Field label="Модель">
+        <Field label={t("ui.model")}>
           <TextField value={model} onChangeText={setModel} placeholder="Caterpillar 320D" />
         </Field>
 
-        <Field label="Инвентарный номер">
-          <TextField value={inventoryNumber} onChangeText={setInventoryNumber} placeholder="ИНВ-0001" />
+        <Field label={t("ui.inventory_number")}>
+          <TextField value={inventoryNumber} onChangeText={setInventoryNumber} placeholder={t("ui.inv_0001")} />
         </Field>
 
-        <Field label="Серийный номер">
+        <Field label={t("ui.serial_number")}>
           <TextField value={serialNumber} onChangeText={setSerialNumber} placeholder="SN-…" />
         </Field>
 
-        <Field label="Состояние" required>
-          <Choice options={STATUS_OPTIONS} value={status} onChange={setStatus} />
+        <Field label={t("ui.condition")} required>
+          <Choice options={(STATUS_OPTIONS).map(option => ({ ...option, label: uiLabel(option.label, language) }))} value={status} onChange={setStatus} />
         </Field>
 
-        <Field label="Объект" hint="Где сейчас находится единица учёта">
+        <Field label={t("work.object")} hint={t("ui.current_asset_location")}>
           <ProjectPicker
             projects={projects}
             value={projectId}
             onChange={setProjectId}
-            placeholder="Не привязано к объекту"
+            placeholder={t("ui.not_linked_to_a_site")}
           />
         </Field>
 
-        <Field label="Ответственный">
-          <TextField value={holderName} onChangeText={setHolderName} placeholder="ФИО" />
+        <Field label={t("ui.responsible_person")}>
+          <TextField value={holderName} onChangeText={setHolderName} placeholder={t("ui.full_name")} />
         </Field>
 
         <PrimaryButton
-          label="Поставить на учёт"
+          label={t("ui.register_asset")}
           icon="content-save-outline"
           onPress={handleSave}
           loading={saving}

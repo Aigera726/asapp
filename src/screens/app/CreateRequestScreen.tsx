@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { currentText, currentLanguage } from "@/i18n/ui-labels";
+import { LOCALES } from '@/i18n/work';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet,
@@ -17,6 +20,7 @@ import { formatQty } from '@/lib/domain';
 import { T } from '@/theme';
 import { DismissKeyboard } from '@/components/DismissKeyboard';
 import { Icon } from '@/components/Icon';
+import { useResourceDisplay } from '@/hooks/useResourceDisplay';
 
 const enhance = withObservables([], () => ({
   resources: database.collections.get<EstimateResource>('estimate_resources').query(),
@@ -29,6 +33,8 @@ interface Props {
 }
 
 const CreateRequestScreen = ({ resources, projects }: Props) => {
+  const { language, t } = useTranslation();
+  const display = useResourceDisplay();
   const navigation = useNavigation();
   const route = useRoute<any>();
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
@@ -42,10 +48,10 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
   const [activeTab, setActiveTab] = useState<1 | 2 | 3 | 4>(2);
 
   const tabNames: Record<number, string> = {
-    1: 'Труд',
-    2: 'Материалы',
-    3: 'Машины',
-    4: 'Оборудование',
+    1: t("ui.labour"),
+    2: t("home.materials"),
+    3: t("ui.machinery"),
+    4: t("ui.equipment"),
   };
 
   // Set default project once when WatermelonDB delivers data
@@ -78,10 +84,10 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
     let result = resources.filter(r => r.typeId === activeTab || (activeTab === 2 && !r.typeId)); // Fallback to tab 2 (Материалы) if typeId is missing
     if (searchQuery.trim()) {
       const lowerQ = searchQuery.toLowerCase();
-      result = result.filter(r => r.name.toLowerCase().includes(lowerQ));
+      result = result.filter(r => r.name.toLowerCase().includes(lowerQ) || display.name(r.id, r.name).toLowerCase().includes(lowerQ));
     }
     return result;
-  }, [resources, searchQuery, activeTab]);
+  }, [resources, searchQuery, activeTab, language, display.version]);
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
@@ -89,17 +95,17 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
     // Filter out zero-quantity items
     const validItems = Object.entries(selectedItems).filter(([_, qty]) => qty > 0);
     if (validItems.length === 0) {
-      Alert.alert('Ошибка', 'Выберите хотя бы одну позицию с количеством больше 0');
+      Alert.alert(t("common.error"), t("ui.select_at_least_one_item_with_a_quantity_above"));
       return;
     }
     if (!selectedProject) {
-      Alert.alert('Ошибка', 'Выберите проект');
+      Alert.alert(t("common.error"), t("ui.select_a_site"));
       return;
     }
 
     const { user } = useAuthStore.getState();
     if (!user) {
-      Alert.alert('Ошибка', 'Необходимо войти в аккаунт');
+      Alert.alert(t("common.error"), t("ui.please_sign_in"));
       return;
     }
 
@@ -132,11 +138,11 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
         await database.batch(...itemsToCreate);
       });
 
-      Alert.alert('Заявка создана', `${validItems.length} позиций добавлено`);
+      Alert.alert(t("ui.request_created"), t("ui.value_items_added", { p0: validItems.length }));
       navigation.goBack();
     } catch (err) {
       console.error('[CreateRequest] Error:', err);
-      Alert.alert('Ошибка', 'Не удалось сохранить заявку');
+      Alert.alert(t("common.error"), t("ui.could_not_save_the_request"));
     } finally {
       setIsSubmitting(false);
     }
@@ -149,19 +155,19 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
         style={[styles.itemCard, isSelected && styles.itemCardSelected]}
         onPress={() => toggleItem(item.id)}
         activeOpacity={0.7}
-        accessibilityLabel={`Выбрать ${item.name}`}
+        accessibilityLabel={t("ui.select_value", { p0: display.name(item.id, item.name) })}
       >
         <View style={[styles.checkbox, isSelected && styles.checked]}>
           {isSelected && <Text style={styles.checkMark}></Text>}
         </View>
         <View style={styles.itemInfo}>
-          <Text style={[styles.itemName, isSelected && styles.itemNameSelected]}>{item.name}</Text>
+          <Text style={[styles.itemName, isSelected && styles.itemNameSelected]}>{display.name(item.id, item.name)}</Text>
           <View style={styles.itemMeta}>
-            <Text style={styles.itemUnit}>{item.unit}</Text>
+            <Text style={styles.itemUnit}>{display.unit(item.id, item.unit)}</Text>
             {item.norm !== undefined && item.norm !== null && (
               // Норма задана на единицу работы, а не на позицию целиком —
               // прежняя подпись «По плану» читалась как готовый объём заявки.
-              <Text style={styles.itemNorm}>Норма: {formatQty(item.norm)} / ед. работы</Text>
+              <Text style={styles.itemNorm}>{currentText("ui.norm")}{' '}{formatQty(item.norm)}{currentText("ui.work_unit")}</Text>
             )}
           </View>
         </View>
@@ -171,7 +177,7 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
             keyboardType="decimal-pad"
             defaultValue="1"
             onChangeText={(val) => updateQuantity(item.id, val)}
-            placeholder="Кол-во"
+            placeholder={t("ui.qty")}
             placeholderTextColor={T.colors.textMuted}
             selectTextOnFocus
             inputAccessoryViewID="DoneKeyboard"
@@ -192,22 +198,22 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
           <View>
             <View style={styles.header}>
               <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                <Text style={styles.backText}>Отмена</Text>
+                <Text style={styles.backText}>{currentText("common.cancel")}</Text>
               </TouchableOpacity>
-              <Text style={styles.title}>Новая заявка</Text>
+              <Text style={styles.title}>{currentText("ui.new_request")}</Text>
               <View style={{ width: 70 }} />
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.label}>ПРОЕКТ</Text>
+              <Text style={styles.label}>{t('work.object')}</Text>
               <TouchableOpacity style={styles.projectSelector} onPress={() => { Keyboard.dismiss(); setShowProjectPicker(true); }} activeOpacity={0.7}>
                 <Text style={[styles.projectSelectorText, !selectedProject && styles.projectPlaceholder]}>
-                  {selectedProject ? selectedProject.name : (projects.length === 0 ? 'Загрузка...' : 'Выберите проект...')}
+                  {selectedProject ? selectedProject.name : (projects.length === 0 ? t("ui.loading") : t("ui.select_a_site"))}
                 </Text>
                 <Text style={styles.chevron}>▼</Text>
               </TouchableOpacity>
 
-              <Text style={styles.label}>ТРЕБУЕМАЯ ДАТА</Text>
+              <Text style={styles.label}>{currentText("ui.required_date")}</Text>
               {Platform.OS === 'ios' ? (
                 <View style={styles.iosDatePickerContainer}>
                   <DateTimePicker
@@ -224,7 +230,7 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
                 <>
                   <TouchableOpacity style={styles.projectSelector} onPress={() => { Keyboard.dismiss(); setShowDatePicker(true); }} activeOpacity={0.7}>
                     <Text style={styles.projectSelectorText}>
-                      {requiredDate.toLocaleDateString('ru-RU')}
+                      {requiredDate.toLocaleDateString(LOCALES[currentLanguage()])}
                     </Text>
                     <Icon name="calendar-outline" size={18} color={T.colors.textMuted} />
                   </TouchableOpacity>
@@ -243,10 +249,10 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
                 </>
               )}
 
-              <Text style={styles.label}>КОММЕНТАРИЙ</Text>
+              <Text style={styles.label}>{currentText("ui.comment")}</Text>
               <TextInput
                 style={styles.commentInput}
-                placeholder="Срочно, нужно к понедельнику..."
+                placeholder={t("ui.urgent_needed_by_monday")}
                 placeholderTextColor={T.colors.textDisabled}
                 value={comment}
                 onChangeText={setComment}
@@ -260,7 +266,7 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
                 <Icon name="magnify" size={18} color={T.colors.textMuted} />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Найти материал..."
+                  placeholder={t("ui.find_a_material")}
                   placeholderTextColor={T.colors.textDisabled}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
@@ -293,13 +299,13 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
         </View>
 
         <Text style={styles.sectionTitle}>
-          {tabNames[activeTab]} · {filteredResources.length}{searchQuery ? ` из ${resources.length}` : ''}
+          {tabNames[activeTab]} · {filteredResources.length}{searchQuery ? t("ui.of_value", { p0: resources.length }) : ''}
         </Text>
 
         {Platform.OS === 'ios' && (
           <InputAccessoryView nativeID="DoneKeyboard">
             <View style={styles.accessory}>
-              <Button onPress={() => Keyboard.dismiss()} title="Готово" />
+              <Button onPress={() => Keyboard.dismiss()} title={t("ui.done")} />
             </View>
           </InputAccessoryView>
         )}
@@ -315,7 +321,7 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
             <View style={styles.empty}>
               <Icon name="inbox-outline" size={30} color={T.colors.textDisabled} />
               <Text style={styles.emptyText}>
-                {resources.length === 0 ? 'Материалы не загружены\nВыполните синхронизацию' : 'Ничего не найдено'}
+                {resources.length === 0 ? t("ui.materials_not_loaded_synchronize_your_data") : t("home.notFound")}
               </Text>
             </View>
           }
@@ -326,7 +332,7 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
           <View style={styles.floatingBar}>
             <View style={styles.floatingInfo}>
               <Text style={styles.floatingCount}>{selectedCount}</Text>
-              <Text style={styles.floatingLabel}>{selectedCount === 1 ? 'позиция' : selectedCount < 5 ? 'позиции' : 'позиций'}</Text>
+              <Text style={styles.floatingLabel}>{selectedCount === 1 ? t("ui.item") : selectedCount < 5 ? t("ui.items") : t("ui.items_b59a7")}</Text>
             </View>
             <TouchableOpacity
               style={[styles.floatingBtn, isSubmitting && styles.floatingBtnDisabled]}
@@ -337,7 +343,7 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
               {isSubmitting ? (
                 <ActivityIndicator color={T.colors.white} size="small" />
               ) : (
-                <Text style={styles.floatingBtnText}>Создать заявку →</Text>
+                <Text style={styles.floatingBtnText}>{currentText("ui.create_request")}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -349,7 +355,7 @@ const CreateRequestScreen = ({ resources, projects }: Props) => {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowProjectPicker(false)}>
           <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Выберите проект</Text>
+            <Text style={styles.modalTitle}>{t("ui.select_a_site")}</Text>
             <ScrollView showsVerticalScrollIndicator={false}>
               {projects.map(p => {
                 const isActive = selectedProject?.id === p.id;

@@ -1,3 +1,5 @@
+import { useTranslation } from '@/i18n';
+
 import { materialMovementKey } from '@/lib/materialContext';
 import { RETIRED_WRITE_OFF_IDS } from '@/lib/legacyWriteOffCleanup';
 import React, { useMemo } from 'react';
@@ -17,6 +19,9 @@ import {
   formatQty,
 } from '@/lib/domain';
 import { formatSmartDate } from '@/lib/formatDate';
+import { useResourceDisplay } from '@/hooks/useResourceDisplay';
+import { useProjectContext } from '@/hooks/useProjectContext';
+import { displayQty } from '@/i18n/work';
 
 const enhance = withObservables([], () => ({
   movements: database.collections.get<MaterialMovement>('material_movements').query(),
@@ -24,11 +29,14 @@ const enhance = withObservables([], () => ({
 
 /** Журнал движений по одной номенклатуре — расшифровка остатка. */
 function MaterialHistoryScreen({ movements }: { movements: MaterialMovement[] }) {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const balanceKey: string = route.params?.balanceKey;
-  const name: string = route.params?.name ?? 'Материал';
+  const name: string = route.params?.name ?? '';
   const unit: string | undefined = route.params?.unit;
+  const display = useResourceDisplay();
+  const context = useProjectContext(route.params?.projectId);
 
   // Ключ строится так же, как в ResourcesScreen — по названию номенклатуры.
   const rows = useMemo(
@@ -43,10 +51,11 @@ function MaterialHistoryScreen({ movements }: { movements: MaterialMovement[] })
     (sum, m) => sum + (MATERIAL_MOVEMENT_SIGN[m.type] ?? 1) * (m.quantity || 0),
     0
   );
+  const resourceId = rows.find(row => row.resourceId)?.resourceId;
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title={name} subtitle="Журнал движений" onBack={() => navigation.goBack()} />
+      <ScreenHeader title={display.name(resourceId, name) || t('ui.material')} subtitle={t("ui.movement_history")} onBack={() => navigation.goBack()} />
 
       <FlatList
         data={rows}
@@ -54,16 +63,14 @@ function MaterialHistoryScreen({ movements }: { movements: MaterialMovement[] })
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <Card style={styles.balanceCard}>
-            <Text style={styles.meta}>{route.params?.context}</Text>
-            <Text style={styles.comment}>Работа: {route.params?.workName ?? 'не привязана'}</Text>
-            <Text style={styles.balanceLabel}>Остаток</Text>
+            <Text style={styles.meta}>{context}</Text>
+            <Text style={styles.comment}>{t("ui.work")}{' '}{display.work(route.params?.workId, route.params?.workName || '') || t("ui.not_linked")}</Text>
+            <Text style={styles.balanceLabel}>{t("ui.balance")}</Text>
             <Text style={[styles.balanceValue, balance < 0 && { color: T.colors.danger }]}>
-              {formatQty(balance)} {unit || 'ед.'}
+              {displayQty(balance, language)} {display.unit(resourceId, unit)}
             </Text>
             {balance < 0 ? (
-              <Text style={styles.balanceWarn}>
-                Отрицательный остаток: расход оформлен без прихода
-              </Text>
+              <Text style={styles.balanceWarn}>{t("ui.negative_balance_usage_was_recorded_without_a_receipt")}{' '}</Text>
             ) : null}
           </Card>
         }
@@ -73,7 +80,7 @@ function MaterialHistoryScreen({ movements }: { movements: MaterialMovement[] })
             <Card>
               <View style={styles.rowTop}>
                 <Badge tone={toneOf(MATERIAL_MOVEMENT_TONES, item.type)}>
-                  {label(MATERIAL_MOVEMENT_LABELS, item.type)}
+                  {label(MATERIAL_MOVEMENT_LABELS, item.type, language)}
                 </Badge>
                 <Text
                   style={[
@@ -82,25 +89,25 @@ function MaterialHistoryScreen({ movements }: { movements: MaterialMovement[] })
                   ]}
                 >
                   {sign > 0 ? '+' : '−'}
-                  {formatQty(item.quantity)} {item.unit || unit || 'ед.'}
+                  {displayQty(item.quantity, language)} {display.unit(item.resourceId, item.unit || unit)}
                 </Text>
               </View>
               {item.comment ? <Text style={styles.comment}>{item.comment}</Text> : null}
               <View style={styles.rowFooter}>
-                <Text style={styles.meta}>{formatSmartDate(item.occurredAt)}</Text>
+                <Text style={styles.meta}>{formatSmartDate(item.occurredAt, language)}</Text>
                 {item.recordSyncStatus !== 'synced' ? (
-                  <Text style={styles.pending}>Ожидает отправки</Text>
+                  <Text style={styles.pending}>{t("history.local")}</Text>
                 ) : null}
               </View>
             </Card>
           );
         }}
         ListEmptyComponent={
-          <EmptyState icon="history" title="Движений нет" />
+          <EmptyState icon="history" title={t("ui.no_movements")} />
         }
       />
       <Fab
-        label="Движение"
+        label={t("ui.movement")}
         onPress={() =>
           navigation.navigate('MaterialForm', {
             name,

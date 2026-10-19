@@ -1,4 +1,7 @@
 import { T } from '@/theme';
+import type { Language } from '@/i18n/messages';
+import { uiLabel } from '@/i18n/ui-labels';
+import { LOCALES } from '@/i18n/work';
 
 /**
  * Человекопонятные названия статусов закупок и складских операций.
@@ -49,8 +52,8 @@ export const OPEN_ORDER_STATUSES = [
   'PARTIALLY_RECEIVED',
 ];
 
-export function getStatusLabel(status: string): string {
-  return STATUS_LABELS[status] || status;
+export function getStatusLabel(status: string, language: Language = 'ru'): string {
+  return Object.prototype.hasOwnProperty.call(STATUS_LABELS, status) ? uiLabel(STATUS_LABELS[status], language) : status;
 }
 
 export function getStatusColor(status: string): { bg: string; text: string } {
@@ -66,7 +69,7 @@ export function getStatusColor(status: string): { bg: string; text: string } {
  */
 const CURRENCY_SYMBOL = '₸';
 
-export function formatAmount(value: number | null | undefined): string {
+export function formatAmount(value: number | null | undefined, language: Language = 'ru'): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—';
-  return `${value.toLocaleString('ru-RU')} ${CURRENCY_SYMBOL}`;
+  return `${value.toLocaleString(LOCALES[language])} ${CURRENCY_SYMBOL}`;
 }

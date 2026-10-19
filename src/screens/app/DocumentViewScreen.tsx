@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { currentText, uiLabel } from "@/i18n/ui-labels";
+import { LOCALES } from '@/i18n/work';
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -19,22 +22,23 @@ interface Props {
 }
 
 const DocumentViewScreen = ({ document }: Props) => {
+  const { language, t } = useTranslation();
   const navigation = useNavigation();
   const { user, contractorName } = useAuthStore();
 
   const handleSign = async () => {
     if (!user) {
-      Alert.alert('Ошибка', 'Сессия истекла — войдите заново');
+      Alert.alert(t("common.error"), t("ui.session_expired_sign_in_again"));
       return;
     }
 
     Alert.alert(
-      'Подписание ЭЦП',
-      'Вы подтверждаете подписание документа своей электронной цифровой подписью?',
+      t("ui.digital_signature"),
+      t("ui.confirm_signing_this_document_with_your_digital_signature"),
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t("common.cancel"), style: 'cancel' },
         {
-          text: 'Подписать',
+          text: t("ui.sign"),
           onPress: async () => {
             try {
               await database.write(async () => {
@@ -60,11 +64,11 @@ const DocumentViewScreen = ({ document }: Props) => {
                   s.signedAt = new Date();
                 });
               });
-              Alert.alert('Успех', 'Документ успешно подписан');
+              Alert.alert(t("ui.success"), t("ui.document_signed_successfully"));
               navigation.goBack();
             } catch (err: any) {
               console.error('[DocumentView] Ошибка подписания:', err);
-              Alert.alert('Ошибка', err?.message ?? 'Не удалось подписать документ');
+              Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_sign_the_document"));
             }
           }
         }
@@ -76,9 +80,9 @@ const DocumentViewScreen = ({ document }: Props) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>‹ Назад</Text>
+          <Text style={styles.backText}>{currentText("ui.back")}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Документ</Text>
+        <Text style={styles.title}>{currentText("ui.document_0fd26")}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -91,27 +95,27 @@ const DocumentViewScreen = ({ document }: Props) => {
           <View style={styles.divider} />
           
           <View style={styles.row}>
-            <Text style={styles.label}>Статус:</Text>
-            <Text style={styles.value}>{document.status}</Text>
+            <Text style={styles.label}>{currentText("ui.status")}</Text>
+            <Text style={styles.value}>{document.status === 'SIGNED' ? t('ui.signed') : document.status === 'PENDING' ? t('ui.awaiting_signature') : uiLabel(document.status, language)}</Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.label}>Workflow:</Text>
-            <Text style={styles.value}>{document.workflowStatus || 'N/A'}</Text>
+            <Text style={styles.label}>{t('ui.approval')}</Text>
+            <Text style={styles.value}>{document.workflowStatus === 'SIGNED' ? t('ui.signed') : document.workflowStatus === 'PENDING' ? t('ui.awaiting_signature') : document.workflowStatus || '—'}</Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.label}>Дата:</Text>
-            <Text style={styles.value}>{document.updatedAt.toLocaleDateString()}</Text>
+            <Text style={styles.label}>{currentText("ui.date")}</Text>
+            <Text style={styles.value}>{document.updatedAt.toLocaleDateString(LOCALES[language])}</Text>
           </View>
         </View>
 
         <TouchableOpacity style={styles.pdfBtn}>
           <Icon name="file-pdf-box" size={22} color={T.colors.primary} />
-          <Text style={styles.pdfText}>Просмотреть PDF</Text>
+          <Text style={styles.pdfText}>{currentText("ui.view_pdf")}</Text>
         </TouchableOpacity>
 
         {document.status === 'PENDING' && (
           <TouchableOpacity style={styles.signBtn} onPress={handleSign}>
-            <Text style={styles.signBtnText}>Подписать ЭЦП</Text>
+            <Text style={styles.signBtnText}>{currentText("ui.sign_digitally")}</Text>
           </TouchableOpacity>
         )}
       </ScrollView>

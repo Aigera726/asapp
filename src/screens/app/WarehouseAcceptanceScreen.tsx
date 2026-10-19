@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { currentText, uiLabel } from "@/i18n/ui-labels";
+
 import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -31,6 +34,7 @@ const QUALITY_STATUSES = [
 type ItemResult = { qty: number; status: string; comment: string };
 
 const WarehouseAcceptanceScreen = ({ order, orderItems }: Props) => {
+  const { language, t } = useTranslation();
   const navigation = useNavigation();
   const [results, setResults] = useState<Record<string, ItemResult>>({});
   const [receiptComment, setReceiptComment] = useState('');
@@ -60,7 +64,7 @@ const WarehouseAcceptanceScreen = ({ order, orderItems }: Props) => {
     if (isSaving) return;
 
     if (orderItems.length === 0) {
-      Alert.alert('Ошибка', 'В заказе нет позиций для приёмки');
+      Alert.alert(t("common.error"), t("ui.this_order_has_no_items_awaiting_receipt"));
       return;
     }
 
@@ -113,11 +117,11 @@ const WarehouseAcceptanceScreen = ({ order, orderItems }: Props) => {
           o.status = fullyReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED';
         });
       });
-      Alert.alert('Успех', 'Приемка завершена');
+      Alert.alert(t("ui.success"), t("ui.receipt_completed"));
       navigation.goBack();
     } catch (err: any) {
       console.error('[Acceptance] Ошибка сохранения:', err);
-      Alert.alert('Ошибка', err?.message ?? 'Не удалось сохранить приемку');
+      Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_save_the_receipt"));
     } finally {
       setIsSaving(false);
     }
@@ -128,11 +132,11 @@ const WarehouseAcceptanceScreen = ({ order, orderItems }: Props) => {
 
     return (
       <View style={styles.itemCard}>
-        <Text style={styles.itemTitle}>Позиция #{item.id.slice(0, 8)}</Text>
-        <Text style={styles.itemSub}>Заказано: {item.quantity ?? 0}</Text>
+        <Text style={styles.itemTitle}>{currentText("ui.item_2a5bc")}{item.id.slice(0, 8)}</Text>
+        <Text style={styles.itemSub}>{currentText("ui.ordered")}{' '}{item.quantity ?? 0}</Text>
 
         <View style={styles.row}>
-          <Text style={styles.label}>Принято:</Text>
+          <Text style={styles.label}>{currentText("ui.received_922c5")}</Text>
           <TextInput
             style={styles.qtyInput}
             keyboardType="decimal-pad"
@@ -141,7 +145,7 @@ const WarehouseAcceptanceScreen = ({ order, orderItems }: Props) => {
           />
         </View>
 
-        <Text style={styles.label}>Состояние (Входящий контроль):</Text>
+        <Text style={styles.label}>{currentText("ui.condition_incoming_inspection")}</Text>
         <View style={styles.statusRow}>
           {QUALITY_STATUSES.map(s => (
             <TouchableOpacity
@@ -150,7 +154,7 @@ const WarehouseAcceptanceScreen = ({ order, orderItems }: Props) => {
               onPress={() => updateResult(item, 'status', s.value)}
             >
               <Text style={[styles.statusBtnText, res.status === s.value && styles.statusBtnTextActive]}>
-                {s.label}
+                {uiLabel(s.label, language)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -163,12 +167,12 @@ const WarehouseAcceptanceScreen = ({ order, orderItems }: Props) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>Отмена</Text>
+          <Text style={styles.backText}>{currentText("common.cancel")}</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>Приемка ТМЦ</Text>
+        <Text style={styles.title}>{currentText("ui.goods_receipt")}</Text>
         <TouchableOpacity onPress={handleSubmit} disabled={isSaving}>
           <Text style={[styles.submitText, isSaving && styles.submitTextDisabled]}>
-            {isSaving ? 'Сохранение…' : 'Сохранить'}
+            {isSaving ? t("ui.saving_632fd") : t("common.save")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -176,10 +180,10 @@ const WarehouseAcceptanceScreen = ({ order, orderItems }: Props) => {
       <FlatList
         ListHeaderComponent={
           <View style={styles.orderHeader}>
-            <Text style={styles.orderLabel}>Накладная: {order.invoiceNumber || 'Б/Н'}</Text>
+            <Text style={styles.orderLabel}>{currentText("ui.delivery_note")}{' '}{order.invoiceNumber || t("ui.no_number")}</Text>
             <TextInput
               style={styles.commentInput}
-              placeholder="Общий комментарий к приемке..."
+              placeholder={t("ui.general_receipt_comment")}
               placeholderTextColor={T.colors.textSecondary}
               value={receiptComment}
               onChangeText={setReceiptComment}

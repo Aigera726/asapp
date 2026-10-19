@@ -1,4 +1,6 @@
 import { T } from '@/theme';
+import type { Language } from '@/i18n/messages';
+import { uiLabel } from '@/i18n/ui-labels';
 
 /**
  * Справочник предметной области для разделов «Ресурсы» и «Контроль».
@@ -203,9 +205,9 @@ export const DEVIATION_STATUS_TONES: Record<string, Tone> = {
 // ── Общее ───────────────────────────────────────────────────────────────────
 const NEUTRAL: Tone = { bg: T.colors.neutralSoft, text: T.colors.textMuted };
 
-export function label(dict: Record<string, string>, code: string | null | undefined): string {
+export function label(dict: Record<string, string>, code: string | null | undefined, language: Language = 'ru'): string {
   if (!code) return '—';
-  return dict[code] ?? code;
+  return Object.prototype.hasOwnProperty.call(dict, code) ? uiLabel(dict[code], language) : code;
 }
 
 export function toneOf(dict: Record<string, Tone>, code: string | null | undefined): Tone {

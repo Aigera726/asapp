@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { currentText, uiLabel } from "@/i18n/ui-labels";
+
 import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -28,6 +31,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const ApprovalListScreen = ({ tasks }: Props) => {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -39,14 +43,14 @@ const ApprovalListScreen = ({ tasks }: Props) => {
   const resolveTask = (task: BpmTask, decision: 'APPROVED' | 'REJECTED') => {
     const isApprove = decision === 'APPROVED';
     Alert.alert(
-      isApprove ? 'Одобрить?' : 'Отклонить?',
-      `${task.stepLabel || 'Задача'} — ${
-        isApprove ? 'будет отправлено согласование' : 'будет отправлен отказ'
+      isApprove ? t("ui.approve") : t("ui.reject_eea1c"),
+      `${task.stepLabel || t("ui.task")} — ${
+        isApprove ? t("ui.approval_will_be_submitted") : t("ui.rejection_will_be_submitted")
       }.`,
       [
-        { text: 'Отмена', style: 'cancel' },
+        { text: t("common.cancel"), style: 'cancel' },
         {
-          text: isApprove ? 'Одобрить' : 'Отклонить',
+          text: isApprove ? t("ui.approve_156f5") : t("ui.reject"),
           style: isApprove ? 'default' : 'destructive',
           onPress: async () => {
             setPendingId(task.id);
@@ -58,7 +62,7 @@ const ApprovalListScreen = ({ tasks }: Props) => {
               });
             } catch (err: any) {
               console.error('[Approvals] Не удалось сохранить решение:', err);
-              Alert.alert('Ошибка', err?.message ?? 'Не удалось сохранить решение');
+              Alert.alert(t("common.error"), err?.message ?? t("ui.could_not_save_the_decision"));
             } finally {
               setPendingId(null);
             }
@@ -77,14 +81,14 @@ const ApprovalListScreen = ({ tasks }: Props) => {
           activeOpacity={0.8}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{item.stepLabel || 'Задача согласования'}</Text>
+            <Text style={styles.cardTitle}>{item.stepLabel || t("ui.approval_task")}</Text>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
-                {ACTION_LABELS[item.actionType] ?? item.actionType}
+                {uiLabel(ACTION_LABELS[item.actionType] ?? item.actionType, language)}
               </Text>
             </View>
           </View>
-          <Text style={styles.cardSubtext}>Задание ожидает вашего решения</Text>
+          <Text style={styles.cardSubtext}>{currentText("ui.this_task_awaits_your_decision")}</Text>
         </TouchableOpacity>
 
         <View style={styles.actions}>
@@ -94,7 +98,7 @@ const ApprovalListScreen = ({ tasks }: Props) => {
             disabled={isBusy}
             activeOpacity={0.8}
           >
-            <Text style={styles.actionText}>Одобрить</Text>
+            <Text style={styles.actionText}>{currentText("ui.approve_156f5")}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtn, styles.rejectBtn, isBusy && styles.actionBtnDisabled]}
@@ -102,7 +106,7 @@ const ApprovalListScreen = ({ tasks }: Props) => {
             disabled={isBusy}
             activeOpacity={0.8}
           >
-            <Text style={styles.actionText}>Отклонить</Text>
+            <Text style={styles.actionText}>{currentText("ui.reject")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -112,7 +116,7 @@ const ApprovalListScreen = ({ tasks }: Props) => {
   return (
     <SafeAreaView style={styles.container}>
       <ScreenHeader
-        title="Согласование"
+        title={t("ui.approval")}
         onBack={() => navigation.goBack()}
         right={tasks.length > 0 ? (
           <Text style={styles.headerCount}>{tasks.length}</Text>
@@ -127,7 +131,7 @@ const ApprovalListScreen = ({ tasks }: Props) => {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Icon name="draw-pen" size={30} color={T.colors.textDisabled} />
-            <Text style={styles.emptyText}>Нет активных задач на согласование</Text>
+            <Text style={styles.emptyText}>{currentText("ui.no_active_approval_tasks")}</Text>
           </View>
         }
       />

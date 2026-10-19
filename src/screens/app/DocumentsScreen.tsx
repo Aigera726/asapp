@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { currentText, currentLanguage } from "@/i18n/ui-labels";
+import { LOCALES } from '@/i18n/work';
 import { ScreenHeader } from '@/components/ui';
 import React, { useState } from 'react';
 import {
@@ -54,14 +57,16 @@ const DocItem = ({
   project: Project | null;
   onSign: (doc: DocumentModel) => void;
   onPress: (doc: DocumentModel) => void;
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <TouchableOpacity style={styles.docCard} onPress={() => onPress(item)} activeOpacity={0.9}>
     <View style={styles.docHeader}>
       <View style={[styles.typeBadge, { backgroundColor: getTypeColor(item.type) }]}>
         <Text style={styles.typeText}>{item.type}</Text>
       </View>
       <Text style={styles.docDate}>
-        {item.updatedAt.toLocaleDateString('ru-RU')}
+        {item.updatedAt.toLocaleDateString(LOCALES[currentLanguage()])}
       </Text>
     </View>
     
@@ -80,7 +85,7 @@ const DocItem = ({
     <View style={styles.footer}>
       <View style={[styles.statusBadge, item.status === 'SIGNED' ? styles.statusSigned : styles.statusPending]}>
         <Text style={[styles.statusText, item.status === 'SIGNED' ? styles.textSigned : styles.textPending]}>
-          {item.status === 'SIGNED' ? '● Подписано' : '○ Ожидает подписи'}
+          {item.status === 'SIGNED' ? t("ui.signed") : t("ui.awaiting_signature")}
         </Text>
       </View>
       
@@ -90,12 +95,13 @@ const DocItem = ({
           onPress={() => onSign(item)}
           activeOpacity={0.7}
         >
-          <Text style={styles.signButtonText}>Подписать ЭЦП</Text>
+          <Text style={styles.signButtonText}>{currentText("ui.sign_digitally")}</Text>
         </TouchableOpacity>
       )}
     </View>
   </TouchableOpacity>
-);
+  );
+};
 
 const EnhanceDocItem = withObservables(['item'], ({ item }: { item: DocumentModel }) => ({
   item,
@@ -110,6 +116,7 @@ const EnhanceDocItem = withObservables(['item'], ({ item }: { item: DocumentMode
 ));
 
 function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const [isSigning, setIsSigning] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<DocumentModel | null>(null);
@@ -142,19 +149,19 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
 
   const confirmSign = async () => {
     if (!edsFile || edsFile.canceled) {
-      Alert.alert('Ошибка', 'Пожалуйста, выберите файл ключа ЭЦП (.p12)');
+      Alert.alert(t("common.error"), t("ui.select_a_digital_signature_key_file_p12"));
       return;
     }
     if (!password) {
-      Alert.alert('Ошибка', 'Введите пароль от ключа');
+      Alert.alert(t("common.error"), t("ui.enter_the_key_password"));
       return;
     }
 
     if (!SIGN_SERVICE_URL) {
       Alert.alert(
-        'Сервис подписания не настроен',
-        'Не задан EXPO_PUBLIC_SIGN_SERVICE_URL. Обратитесь к администратору — ' +
-          'без него закрытый ключ ЭЦП отправлять некуда.'
+        t("ui.signing_service_is_not_configured"),
+        t("ui.expo_public_sign_service_url_is_missing_contact_the") +
+          t("ui.there_is_no_configured_destination_for_the_private_signing")
       );
       return;
     }
@@ -185,7 +192,7 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
       });
 
       if (!response.ok) {
-        throw new Error(`Ошибка сервера: ${response.status}`);
+        throw new Error(t("ui.server_error_value", { p0: response.status }));
       }
 
       const result = await response.json();
@@ -204,17 +211,17 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
 
       setIsSigning(false);
       setShowSignModal(false);
-      Alert.alert('Успех', `Документ ${selectedDoc?.number} успешно подписан ЭЦП.`);
+      Alert.alert(t("ui.success"), t("ui.document_value_was_signed_successfully", { p0: selectedDoc?.number ?? '—' }));
     } catch (err: any) {
       console.error('[Sign] Error:', err);
       setIsSigning(false);
-      Alert.alert('Ошибка подписания', err.message || 'Произошла непредвиденная ошибка');
+      Alert.alert(t("ui.signing_error"), err.message || t("ui.an_unexpected_error_occurred"));
     }
   };
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Документы" subtitle="Согласование и подписание файлов" onBack={() => navigation.goBack()} />
+      <ScreenHeader title={t("ui.documents")} subtitle={t("ui.file_approval_and_signing")} onBack={() => navigation.goBack()} />
 
       <FlatList
         data={documents}
@@ -230,10 +237,8 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Icon name="file-document-multiple-outline" size={34} color={T.colors.textDisabled} />
-            <Text style={styles.emptyTitle}>Нет документов</Text>
-            <Text style={styles.emptyText}>
-              Список документов появится после синхронизации заданий или актов.
-            </Text>
+            <Text style={styles.emptyTitle}>{t("ui.no_documents")}</Text>
+            <Text style={styles.emptyText}>{t("ui.documents_will_appear_after_synchronizing_tasks_or_acts")}{' '}</Text>
           </View>
         }
       />
@@ -249,27 +254,27 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
             {isSigning ? (
               <View style={styles.signingContainer}>
                 <ActivityIndicator size="large" color={T.colors.primary} />
-                <Text style={styles.signingText}>Подписание ЭЦП...</Text>
-                <Text style={styles.signingSubtext}>Мы передаем ключ на сервер для формирования подписи. Пожалуйста, подождите.</Text>
+                <Text style={styles.signingText}>{t("ui.signing_digitally")}</Text>
+                <Text style={styles.signingSubtext}>{t("ui.the_key_is_being_sent_to_the_signing_server")}</Text>
               </View>
             ) : (
               <>
-                <Text style={styles.modalTitle}>Подписание ЭЦП</Text>
-                <Text style={styles.modalDocName}>Документ: {selectedDoc?.number}</Text>
+                <Text style={styles.modalTitle}>{t("ui.digital_signature")}</Text>
+                <Text style={styles.modalDocName}>{t("ui.document")}{' '}{selectedDoc?.number}</Text>
                 
                 <View style={styles.formSection}>
-                  <Text style={styles.fieldLabel}>Файл ключа (.p12)</Text>
+                  <Text style={styles.fieldLabel}>{t("ui.key_file_p12")}</Text>
                   <TouchableOpacity style={styles.filePicker} onPress={pickKey}>
                     <Icon name="key-outline" size={22} color={T.colors.primary} />
                     <Text style={styles.filePickerText}>
-                      {edsFile && !edsFile.canceled ? edsFile.assets[0].name : 'Выбрать файл ключа'}
+                      {edsFile && !edsFile.canceled ? edsFile.assets[0].name : t("ui.choose_key_file")}
                     </Text>
                   </TouchableOpacity>
 
-                  <Text style={styles.fieldLabel}>Пароль от ключа</Text>
+                  <Text style={styles.fieldLabel}>{t("ui.key_password")}</Text>
                   <TextInput
                     style={styles.passwordInput}
-                    placeholder="Введите пароль"
+                    placeholder={t("login.passwordPlaceholder")}
                     placeholderTextColor={T.colors.textMuted}
                     secureTextEntry
                     value={password}
@@ -279,9 +284,7 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
                 </View>
 
                 <View style={[styles.securityNotice, { marginBottom: 24 }]}>
-                   <Text style={styles.securityText}>
-                     Файл ключа и пароль будут удалены с сервера сразу после подписания документа.
-                   </Text>
+                   <Text style={styles.securityText}>{t("ui.the_key_file_and_password_will_be_removed_from")}{' '}</Text>
                 </View>
 
                 <TouchableOpacity
@@ -292,14 +295,14 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
                   onPress={confirmSign}
                   disabled={!edsFile || !password || !SIGN_SERVICE_URL}
                 >
-                  <Text style={styles.confirmSignBtnText}>Подписать документ</Text>
+                  <Text style={styles.confirmSignBtnText}>{t("ui.sign_document")}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
                   style={styles.cancelButton} 
                   onPress={() => setShowSignModal(false)}
                 >
-                  <Text style={styles.cancelButtonText}>Отмена</Text>
+                  <Text style={styles.cancelButtonText}>{t("common.cancel")}</Text>
                 </TouchableOpacity>
               </>
             )}

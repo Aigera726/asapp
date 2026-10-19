@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { uiLabel } from "@/i18n/ui-labels";
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -31,6 +34,8 @@ import {
   formatQty,
 } from '@/lib/domain';
 import { formatSmartDate } from '@/lib/formatDate';
+import { useResourceDisplay } from '@/hooks/useResourceDisplay';
+import { displayQty } from '@/i18n/work';
 
 const enhance = withObservables([], () => ({
   projects: database.get<Project>('projects').query(),
@@ -56,7 +61,8 @@ interface Props {
 type Balance = {
   key: string;
   projectId: string;
-  context: string;
+  resourceId: string | null;
+  workId: string | null;
   workName: string;
   name: string;
   unit: string | null;
@@ -66,12 +72,14 @@ type Balance = {
 };
 
 function ResourcesScreen({ assets, movements, projects, objects, resources, works }: Props) {
+  const { language, t } = useTranslation();
+  const display = useResourceDisplay();
   const navigation = useNavigation<any>();
   useEffect(() => { removeRetiredWriteOffs().catch((e) => console.error('[Cleanup]', e)); }, []);
   const contextFor = (projectId: string | null) => {
     const object = projects.find((p) => p.id === projectId);
     const project = objects.find((o) => o.id === object?.objectId);
-    return 'Проект: ' + (project?.name ?? 'не указан') + '\nОбъект: ' + (object?.name ?? 'не указан');
+    return t("ui.project_3bab6") + (project?.name ?? t("ui.not_specified_47846")) + t("ui.site") + (object?.name ?? t("ui.not_specified_47846"));
   };
   const [tab, setTab] = useState<Tab>('MATERIALS');
 
@@ -95,8 +103,9 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
         acc.set(key, {
           key,
           projectId: m.projectId,
-          context: contextFor(m.projectId),
-          workName: works.find((w) => w.id === resources.find((r) => r.id === m.resourceId)?.estimateWorkId)?.name ?? 'не привязана',
+          resourceId: m.resourceId,
+          workId: resources.find(r => r.id === m.resourceId)?.estimateWorkId ?? null,
+          workName: works.find((w) => w.id === resources.find((r) => r.id === m.resourceId)?.estimateWorkId)?.name ?? '',
           name: m.materialName,
           unit: m.unit,
           quantity: sign * (m.quantity || 0),
@@ -117,10 +126,10 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
   }, [assets]);
 
   const tabs: { value: Tab; label: string; count?: number }[] = [
-    { value: 'MATERIALS', label: 'Материалы', count: balances.length },
+    { value: 'MATERIALS', label: t("home.materials"), count: balances.length },
     ...ASSET_KINDS.map((k) => ({
       value: k.value as Tab,
-      label: k.plural,
+      label: uiLabel(k.plural, language),
       count: byKind[k.value]?.length ?? 0,
     })),
   ];
@@ -130,7 +139,7 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
     const negative = balances.filter((b) => b.quantity < 0).length;
     return (
       <View style={styles.container}>
-        <ScreenHeader title="Ресурсы" subtitle="Склад и парк оборудования" large />
+        <ScreenHeader title={t("nav.Resources")} subtitle={t("ui.warehouse_and_equipment_fleet")} large />
         <Segmented items={tabs} value={tab} onChange={setTab} />
 
         <FlatList
@@ -140,11 +149,11 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
           ListHeaderComponent={
             balances.length > 0 ? (
               <View style={styles.statsRow}>
-                <StatTile value={balances.length} label="Номенклатур" />
-                <StatTile value={balances.reduce((sum, b) => sum + b.movements, 0)} label="Движений" />
+                <StatTile value={balances.length} label={t("ui.stock_items")} />
+                <StatTile value={balances.reduce((sum, b) => sum + b.movements, 0)} label={t("ui.movements")} />
                 <StatTile
                   value={negative}
-                  label="В минусе"
+                  label={t("ui.negative_balances")}
                   tone={negative > 0 ? T.colors.danger : undefined}
                 />
               </View>
@@ -153,10 +162,10 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
           renderItem={({ item }) => (
             <ListRow
               icon="package-variant-closed"
-              title={item.name}
-              subtitle={item.context}
+              title={display.name(item.resourceId, item.name)}
+              subtitle={contextFor(item.projectId)}
               subtitleLines={4}
-              meta={`Работа: ${item.workName}\n${item.movements} движ. · ${formatSmartDate(item.lastAt)}`}
+              meta={t("ui.work_value_value_movements_value", { p0: display.work(item.workId, item.workName) || t('ui.not_linked'), p1: displayQty(item.movements, language), p2: formatSmartDate(item.lastAt, language) })}
               badge={
                 <View style={styles.qtyBox}>
                   <Text
@@ -165,16 +174,17 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
                       item.quantity < 0 && { color: T.colors.danger },
                     ]}
                   >
-                    {formatQty(item.quantity)}
+                    {displayQty(item.quantity, language)}
                   </Text>
-                  <Text style={styles.qtyUnit}>{item.unit || 'ед.'}</Text>
+                  <Text style={styles.qtyUnit}>{display.unit(item.resourceId, item.unit)}</Text>
                 </View>
               }
               onPress={() =>
                 navigation.navigate('MaterialHistory', {
                   balanceKey: item.key,
                   projectId: item.projectId,
-                  context: item.context,
+                  context: contextFor(item.projectId),
+                  workId: item.workId,
                   workName: item.workName,
                   name: item.name,
                   unit: item.unit ?? undefined,
@@ -185,15 +195,15 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
           ListEmptyComponent={
             <EmptyState
               icon="package-variant"
-              title="Склад пуст"
-              text="Оформите приход материалов — остатки посчитаются по журналу движений автоматически."
-              actionLabel="Оформить движение"
+              title={t("ui.warehouse_is_empty")}
+              text={t("ui.record_a_material_receipt_balances_are_calculated_from_movement")}
+              actionLabel={t("ui.record_movement")}
               onAction={() => navigation.navigate('MaterialForm', {})}
             />
           }
         />
         {balances.length > 0 ? (
-          <Fab label="Движение" onPress={() => navigation.navigate('MaterialForm', {})} />
+          <Fab label={t("ui.movement")} onPress={() => navigation.navigate('MaterialForm', {})} />
         ) : null}
       </View>
     );
@@ -207,7 +217,7 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Ресурсы" subtitle="Склад и парк оборудования" large />
+      <ScreenHeader title={t("nav.Resources")} subtitle={t("ui.warehouse_and_equipment_fleet")} large />
       <Segmented items={tabs} value={tab} onChange={setTab} />
 
       <FlatList
@@ -217,11 +227,11 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
         ListHeaderComponent={
           list.length > 0 ? (
             <View style={styles.statsRow}>
-              <StatTile value={list.length} label="Всего" />
-              <StatTile value={inUse} label="В работе" tone={T.colors.success} />
+              <StatTile value={list.length} label={t("ui.total")} />
+              <StatTile value={inUse} label={t("work.inProgress")} tone={T.colors.success} />
               <StatTile
                 value={inRepair}
-                label="В ремонте"
+                label={t("ui.under_repair")}
                 tone={inRepair > 0 ? T.colors.warning : undefined}
               />
             </View>
@@ -231,13 +241,13 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
           <ListRow
             icon={kindMeta.icon as any}
             title={item.name}
-            subtitle={[item.model, item.inventoryNumber && `инв. ${item.inventoryNumber}`]
+            subtitle={[item.model, item.inventoryNumber && t("ui.inv_value", { p0: item.inventoryNumber })]
               .filter(Boolean)
               .join(' · ')}
-            meta={`${contextFor(item.projectId)}\n${item.holderName ? `У кого: ${item.holderName}` : 'Не выдано'}`}
+            meta={`${contextFor(item.projectId)}\n${item.holderName ? t("ui.held_by_value", { p0: item.holderName }) : t("ui.not_issued")}`}
             badge={
               <Badge tone={toneOf(ASSET_STATUS_TONES, item.status)}>
-                {label(ASSET_STATUS_LABELS, item.status)}
+                {label(ASSET_STATUS_LABELS, item.status, language)}
               </Badge>
             }
             onPress={() => navigation.navigate('AssetDetail', { assetId: item.id })}
@@ -246,17 +256,15 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
         ListEmptyComponent={
           <EmptyState
             icon={kindMeta.icon as any}
-            title={`${kindMeta.plural}: пусто`}
-            text={`Добавьте единицу учёта, чтобы вести выдачу, возвраты, ремонты${
-              tab === 'MACHINERY' ? ' и наработку смен' : ''
-            }.`}
-            actionLabel="Добавить"
+            title={t("ui.value_empty", { p0: uiLabel(kindMeta.plural, language) })}
+            text={t("ui.register_an_asset_to_track_issues_returns_and_repairsvalue", { p0: tab === 'MACHINERY' ? t("ui.and_shift_operating_time") : '' })}
+            actionLabel={t("ui.add")}
             onAction={() => navigation.navigate('AssetForm', { kind: tab })}
           />
         }
       />
       {list.length > 0 ? (
-        <Fab label="Добавить" onPress={() => navigation.navigate('AssetForm', { kind: tab })} />
+        <Fab label={t("ui.add")} onPress={() => navigation.navigate('AssetForm', { kind: tab })} />
       ) : null}
     </View>
   );

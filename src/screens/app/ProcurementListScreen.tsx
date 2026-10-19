@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+import { currentText, currentLanguage } from "@/i18n/ui-labels";
+
 import { ScreenHeader } from '@/components/ui';
 import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, StyleSheet, Alert } from 'react-native';
@@ -24,6 +27,7 @@ interface Props {
 }
 
 const ProcurementListScreen = ({ requests, orders }: Props) => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<'requests' | 'orders'>('requests');
   const [refreshing, setRefreshing] = useState(false);
@@ -33,7 +37,7 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
     try {
       await syncDatabase(false);
     } catch (err: any) {
-      Alert.alert('Ошибка синхронизации', err.message ?? 'Попробуйте ещё раз');
+      Alert.alert(t("home.syncErrorTitle"), err.message ?? t("ui.please_try_again"));
     } finally {
       setRefreshing(false);
     }
@@ -51,19 +55,19 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleRow}>
             <Text style={styles.cardTitle}>
-              {item.requestNumber ? `Заявка #${item.requestNumber}` : 'Новая заявка'}
+              {item.requestNumber ? t("ui.request_value", { p0: item.requestNumber }) : t("ui.new_request")}
             </Text>
             {!isSynced && <View style={styles.unsyncedDot} />}
           </View>
           <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-            <Text style={[styles.badgeText, { color: sc.text }]}>{getStatusLabel(item.status)}</Text>
+            <Text style={[styles.badgeText, { color: sc.text }]}>{getStatusLabel(item.status, currentLanguage())}</Text>
           </View>
         </View>
         {item.comment ? (
           <Text style={styles.cardComment} numberOfLines={2}>{item.comment}</Text>
         ) : null}
         <View style={styles.cardFooter}>
-          <Text style={styles.cardDate}>{formatSmartDate(item.updatedAt)}</Text>
+          <Text style={styles.cardDate}>{formatSmartDate(item.updatedAt, currentLanguage())}</Text>
           <Text style={styles.cardArrow}>›</Text>
         </View>
       </TouchableOpacity>
@@ -81,15 +85,15 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
         activeOpacity={0.7}
       >
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Заказ #{item.invoiceNumber || item.id.slice(0, 8)}</Text>
+          <Text style={styles.cardTitle}>{currentText("ui.order")}{item.invoiceNumber || item.id.slice(0, 8)}</Text>
           <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-            <Text style={[styles.badgeText, { color: sc.text }]}>{getStatusLabel(item.status)}</Text>
+            <Text style={[styles.badgeText, { color: sc.text }]}>{getStatusLabel(item.status, currentLanguage())}</Text>
           </View>
         </View>
         {/* totalAmount приходит из БД и бывает null — прямой toLocaleString() ронял экран */}
-        <Text style={styles.cardComment}>Сумма: {formatAmount(item.totalAmount)}</Text>
+        <Text style={styles.cardComment}>{currentText("ui.amount")}{' '}{formatAmount(item.totalAmount, currentLanguage())}</Text>
         <View style={styles.cardFooter}>
-          <Text style={styles.cardDate}>Нажмите для приемки</Text>
+          <Text style={styles.cardDate}>{currentText("ui.tap_to_receive")}</Text>
           <Text style={styles.cardArrow}>›</Text>
         </View>
       </TouchableOpacity>
@@ -100,9 +104,9 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScreenHeader title="Закупки" subtitle="Заявки и заказы" onBack={() => navigation.goBack()} right={
+      <ScreenHeader title={t("home.procurement")} subtitle={t("ui.requests_and_orders")} onBack={() => navigation.goBack()} right={
         <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('CreateRequest', { projectId: '' })}>
-          <Text style={styles.addBtnText}>+ Создать</Text>
+          <Text style={styles.addBtnText}>{currentText("ui.create")}</Text>
         </TouchableOpacity>
       } />
 
@@ -112,9 +116,7 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
           onPress={() => setActiveTab('requests')}
           activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>
-            Потребности
-          </Text>
+          <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>{currentText("ui.requirements")}{' '}</Text>
           {requests.length > 0 && (
             <View style={[styles.tabBadge, activeTab === 'requests' && styles.tabBadgeActive]}>
               <Text style={[styles.tabBadgeText, activeTab === 'requests' && styles.tabBadgeTextActive]}>{requests.length}</Text>
@@ -126,7 +128,7 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
           onPress={() => setActiveTab('orders')}
           activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'orders' && styles.activeTabText]}>Заказы</Text>
+          <Text style={[styles.tabText, activeTab === 'orders' && styles.activeTabText]}>{currentText("ui.orders")}</Text>
           {orders.length > 0 && (
             <View style={[styles.tabBadge, activeTab === 'orders' && styles.tabBadgeActive]}>
               <Text style={[styles.tabBadgeText, activeTab === 'orders' && styles.tabBadgeTextActive]}>{orders.length}</Text>
@@ -145,12 +147,12 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
           <View style={styles.empty}>
             <Icon name={activeTab === 'requests' ? 'clipboard-list-outline' : 'package-variant-closed'} size={34} color={T.colors.textDisabled} />
             <Text style={styles.emptyTitle}>
-              {activeTab === 'requests' ? 'Нет заявок' : 'Нет заказов'}
+              {activeTab === 'requests' ? t("ui.no_requests_b0dd8") : t("ui.no_orders")}
             </Text>
             <Text style={styles.emptySubtext}>
               {activeTab === 'requests'
-                ? 'Создайте первую заявку на закупку\nнажав кнопку «+ Создать» выше'
-                : 'Заказы появятся после согласования заявок'}
+                ? t("ui.create_your_first_purchase_request_using_the_create_button")
+                : t("ui.orders_will_appear_after_the_requests_are_approved")}
             </Text>
           </View>
         }

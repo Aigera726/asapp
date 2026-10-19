@@ -1,3 +1,6 @@
+import { useTranslation } from '@/i18n';
+
+import { LOCALES } from '@/i18n/work';
 import React, { useState, useMemo } from 'react';
 import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -41,6 +44,7 @@ interface Props {
 
 /** Технадзор: проверки, предписания и технические отклонения. */
 function ControlScreen({ inspections, prescriptions, deviations }: Props) {
+  const { language, t } = useTranslation();
   const navigation = useNavigation<any>();
   const [tab, setTab] = useState<Tab>('PRESCRIPTIONS');
 
@@ -58,14 +62,14 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
   );
 
   const tabs: { value: Tab; label: string; count?: number }[] = [
-    { value: 'PRESCRIPTIONS', label: 'Предписания', count: openPrescriptions.length },
-    { value: 'INSPECTIONS', label: 'Проверки', count: inspections.length },
-    { value: 'DEVIATIONS', label: 'Отклонения', count: pendingDeviations.length },
+    { value: 'PRESCRIPTIONS', label: t("ui.corrective_notices"), count: openPrescriptions.length },
+    { value: 'INSPECTIONS', label: t("ui.inspections"), count: inspections.length },
+    { value: 'DEVIATIONS', label: t("ui.deviations"), count: pendingDeviations.length },
   ];
 
   const header = (
     <>
-      <ScreenHeader title="Контроль" subtitle="Технадзор и качество" large />
+      <ScreenHeader title={t("nav.Control")} subtitle={t("ui.technical_supervision_and_quality")} large />
       <Segmented items={tabs} value={tab} onChange={setTab} />
     </>
   );
@@ -90,15 +94,15 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
           ListHeaderComponent={
             prescriptions.length > 0 ? (
               <View style={styles.statsRow}>
-                <StatTile value={openPrescriptions.length} label="Открытых" />
+                <StatTile value={openPrescriptions.length} label={t("ui.open")} />
                 <StatTile
                   value={overdue.length}
-                  label="Просрочено"
+                  label={t("ui.overdue")}
                   tone={overdue.length > 0 ? T.colors.danger : undefined}
                 />
                 <StatTile
                   value={prescriptions.length - openPrescriptions.length}
-                  label="Закрыто"
+                  label={t("ui.closed")}
                   tone={T.colors.success}
                 />
               </View>
@@ -111,15 +115,15 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
                 icon={late ? 'alert-circle-outline' : 'clipboard-alert-outline'}
                 iconColor={late ? T.colors.danger : T.colors.primary}
                 title={item.title}
-                subtitle={`${item.number ? item.number + ' · ' : ''}${label(SEVERITY_LABELS, item.severity)}`}
+                subtitle={`${item.number ? item.number + ' · ' : ''}${label(SEVERITY_LABELS, item.severity, language)}`}
                 meta={
                   item.dueAt
-                    ? `${late ? 'Просрочено с' : 'Срок'}: ${item.dueAt.toLocaleDateString('ru-RU')}`
-                    : `Выдано ${formatSmartDate(item.issuedAt)}`
+                    ? `${late ? t("ui.overdue_since") : t("ui.due_date")}: ${item.dueAt.toLocaleDateString(LOCALES[language])}`
+                    : t("ui.issued_value", { p0: formatSmartDate(item.issuedAt, language) })
                 }
                 badge={
                   <Badge tone={toneOf(PRESCRIPTION_STATUS_TONES, item.status)}>
-                    {label(PRESCRIPTION_STATUS_LABELS, item.status)}
+                    {label(PRESCRIPTION_STATUS_LABELS, item.status, language)}
                   </Badge>
                 }
                 danger={late}
@@ -130,15 +134,15 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
           ListEmptyComponent={
             <EmptyState
               icon="clipboard-check-outline"
-              title="Предписаний нет"
-              text="Предписание фиксирует нарушение и срок его устранения — с фото и проверкой исполнения."
-              actionLabel="Выдать предписание"
+              title={t("ui.no_corrective_notices")}
+              text={t("ui.a_notice_records_a_violation_and_its_correction_deadline")}
+              actionLabel={t("ui.issue_a_notice")}
               onAction={() => navigation.navigate('PrescriptionForm', {})}
             />
           }
         />
         {prescriptions.length > 0 ? (
-          <Fab label="Предписание" onPress={() => navigation.navigate('PrescriptionForm', {})} />
+          <Fab label={t("home.prescription")} onPress={() => navigation.navigate('PrescriptionForm', {})} />
         ) : null}
       </View>
     );
@@ -161,15 +165,15 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
           ListHeaderComponent={
             inspections.length > 0 ? (
               <View style={styles.statsRow}>
-                <StatTile value={inspections.length} label="Проверок" />
+                <StatTile value={inspections.length} label={t("ui.inspections_02ba3")} />
                 <StatTile
                   value={inspections.filter((i) => i.result === 'PASS').length}
-                  label="Соответствует"
+                  label={t("ui.compliant")}
                   tone={T.colors.success}
                 />
                 <StatTile
                   value={failed}
-                  label="Нарушений"
+                  label={t("ui.violations")}
                   tone={failed > 0 ? T.colors.danger : undefined}
                 />
               </View>
@@ -179,11 +183,11 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
             <ListRow
               icon="clipboard-search-outline"
               title={item.title}
-              subtitle={label(INSPECTION_KIND_LABELS, item.kind)}
-              meta={`${formatSmartDate(item.inspectedAt)}${item.inspectorName ? ' · ' + item.inspectorName : ''}`}
+              subtitle={label(INSPECTION_KIND_LABELS, item.kind, language)}
+              meta={`${formatSmartDate(item.inspectedAt, language)}${item.inspectorName ? ' · ' + item.inspectorName : ''}`}
               badge={
                 <Badge tone={toneOf(INSPECTION_RESULT_TONES, item.result)}>
-                  {label(INSPECTION_RESULT_LABELS, item.result)}
+                  {label(INSPECTION_RESULT_LABELS, item.result, language)}
                 </Badge>
               }
             />
@@ -191,15 +195,15 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
           ListEmptyComponent={
             <EmptyState
               icon="clipboard-search-outline"
-              title="Проверок нет"
-              text="Входной, операционный и приёмочный контроль, а также освидетельствование скрытых работ."
-              actionLabel="Провести проверку"
+              title={t("ui.no_inspections")}
+              text={t("ui.incoming_operational_and_acceptance_inspections_including_concealed_work_inspections")}
+              actionLabel={t("ui.start_an_inspection")}
               onAction={() => navigation.navigate('InspectionForm', {})}
             />
           }
         />
         {inspections.length > 0 ? (
-          <Fab label="Проверка" onPress={() => navigation.navigate('InspectionForm', {})} />
+          <Fab label={t("home.inspection")} onPress={() => navigation.navigate('InspectionForm', {})} />
         ) : null}
       </View>
     );
@@ -222,17 +226,17 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
             <View style={styles.statsRow}>
               <StatTile
                 value={pendingDeviations.length}
-                label="На согласовании"
+                label={t("ui.awaiting_approval")}
                 tone={pendingDeviations.length > 0 ? T.colors.warning : undefined}
               />
               <StatTile
                 value={deviations.filter((d) => d.status === 'APPROVED').length}
-                label="Согласовано"
+                label={t("ui.approved")}
                 tone={T.colors.success}
               />
               <StatTile
                 value={deviations.filter((d) => d.status === 'REJECTED').length}
-                label="Отклонено"
+                label={t("history.rejected")}
               />
             </View>
           ) : null
@@ -241,11 +245,11 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
           <ListRow
             icon="source-branch"
             title={item.title}
-            subtitle={`${item.number ? item.number + ' · ' : ''}${label(DEVIATION_CATEGORY_LABELS, item.category)}`}
-            meta={formatSmartDate(item.requestedAt)}
+            subtitle={`${item.number ? item.number + ' · ' : ''}${label(DEVIATION_CATEGORY_LABELS, item.category, language)}`}
+            meta={formatSmartDate(item.requestedAt, language)}
             badge={
               <Badge tone={toneOf(DEVIATION_STATUS_TONES, item.status)}>
-                {label(DEVIATION_STATUS_LABELS, item.status)}
+                {label(DEVIATION_STATUS_LABELS, item.status, language)}
               </Badge>
             }
             onPress={() => navigation.navigate('DeviationDetail', { deviationId: item.id })}
@@ -254,15 +258,15 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
         ListEmptyComponent={
           <EmptyState
             icon="source-branch"
-            title="Отклонений нет"
-            text="Отступление от проекта, замена материала или технологии — с обоснованием и решением."
-            actionLabel="Оформить отклонение"
+            title={t("ui.no_deviations")}
+            text={t("ui.a_departure_from_the_design_or_a_change_of")}
+            actionLabel={t("ui.register_a_deviation")}
             onAction={() => navigation.navigate('DeviationForm', {})}
           />
         }
       />
       {deviations.length > 0 ? (
-        <Fab label="Отклонение" onPress={() => navigation.navigate('DeviationForm', {})} />
+        <Fab label={t("ui.deviation")} onPress={() => navigation.navigate('DeviationForm', {})} />
       ) : null}
     </View>
   );
