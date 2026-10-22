@@ -3,6 +3,7 @@
   "version": "1.1.0",
   "main": "index.ts",
   "scripts": {
+    "test:sync-delivery": "node scripts/test-sync-delivery.cjs",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",

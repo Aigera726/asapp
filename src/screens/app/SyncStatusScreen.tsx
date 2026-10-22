@@ -23,6 +23,8 @@ import Report from '@/database/models/Report';
 import PurchaseRequest from '@/database/models/PurchaseRequest';
 import { T } from '@/theme';
 import { getStatusLabel } from '@/lib/statusLabels';
+import { useSyncStore } from '@/store/syncStore';
+import { deliveryMessage } from '@/i18n/delivery';
 
 // Fix 1.4: _status is a WatermelonDB internal meta-field that cannot be used
 // with Q.where(). Fetch all purchase_requests reactively and filter in JS.
@@ -46,6 +48,7 @@ interface Props {
 
 function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props) {
   const { language, t } = useTranslation();
+  const issues = useSyncStore(state => state.issues);
   const syncLabel = (status: string) => status === 'pending_sync' ? t('history.local')
     : status === 'draft' ? t('ui.draft') : status === 'synced' ? t('ui.synchronized') : status;
   const navigation = useNavigation<any>();
@@ -87,7 +90,7 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
       );
     } catch (err: any) {
       console.error('[SyncScreen] Error:', err);
-      Alert.alert(t("home.syncErrorTitle"), err.message ?? t("ui.please_try_again"));
+      Alert.alert(t("home.syncErrorTitle"), deliveryMessage(err, language) || err.message || t("ui.please_try_again"));
     } finally {
       setIsSyncing(false);
     }
@@ -177,6 +180,12 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
         onBack={() => navigation.goBack()}
       />
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {issues.length > 0 && <View accessibilityLiveRegion="polite" style={{ padding: 16, marginBottom: 16, backgroundColor: T.colors.warningSoft, borderRadius: 12 }}>
+          <Text style={{ color: T.colors.textPrimary, fontWeight: '700' }}>{t('delivery.remaining', { count: issues.length })}</Text>
+          {issues.map(issue => <Text key={`${issue.table}:${issue.id}`} style={{ marginTop: 8, color: T.colors.textPrimary }}>
+            {issue.id.slice(0, 8)} · {t(`delivery.${issue.code}`)}
+          </Text>)}
+        </View>}
 
         {/* Статистика */}
         <View style={styles.statsRow}>

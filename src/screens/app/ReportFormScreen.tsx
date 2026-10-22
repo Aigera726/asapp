@@ -18,6 +18,7 @@ import * as Location from 'expo-location';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { database } from '@/database';
 import { syncSavedReport } from '@/database/sync';
+import { preserveReportPhoto } from '@/lib/report-photo';
 import WorkAssignment from '@/database/models/WorkAssignment';
 import { useAuthStore } from '@/store/authStore';
 import { AppStackParamList } from '@/navigation';
@@ -38,6 +39,7 @@ import { displayQty, displayDate, unitLabel, demoName, reportError } from '@/i18
 import { useAssignmentTexts } from '@/hooks/useAssignmentTexts';
 import { localizedValue } from '@/lib/assignment-texts';
 import LanguageSelector from '@/components/LanguageSelector';
+import { deliveryMessage } from '@/i18n/delivery';
 
 const HISTORY_STATUS: Record<VolumeHistoryEntry['status'], { label: TranslationKey; color: string; bg: string }> = {
   pending_approval: { label: 'history.pending', color: S.warning, bg: S.warningSoft },
@@ -74,6 +76,7 @@ export default function ReportFormScreen({ route }: Props) {
   const [quantity, setQuantity] = useState('');
   const [comment, setComment] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
   const [showCamera, setShowCamera] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -186,6 +189,7 @@ export default function ReportFormScreen({ route }: Props) {
   };
 
   const handleSubmit = async () => {
+    if (savingRef.current) return;
     const qty = workQty;
     if (!Number.isFinite(qty) || qty <= 0) {
       reportNotify('common.error', 'report.invalidQuantity');
@@ -197,6 +201,9 @@ export default function ReportFormScreen({ route }: Props) {
       notify(translate(selectedLanguage, 'report.estimateTitle'), planError ? reportError(planError, selectedLanguage) : translate(selectedLanguage, 'report.waitEstimate'));
       return;
     }
+    savingRef.current = true;
+    setIsSaving(true);
+    try {
     // Проверяем по данным сервера на момент отправки: решение ERP могло
     // прийти, пока форма была открыта. Без связи — по снимку устройства,
     // окончательную проверку всё равно сделает сервер при отправке.
@@ -218,8 +225,6 @@ export default function ReportFormScreen({ route }: Props) {
       return;
     }
 
-    setIsSaving(true);
-    try {
       // Запрашиваем геолокацию (anti-fraud)
       let geoLat: number | null = null;
       let geoLon: number | null = null;
@@ -237,12 +242,13 @@ export default function ReportFormScreen({ route }: Props) {
       }
 
       // Сохраняем ресурсы в отчёте, без движений по складу.
+      const reportId = generateUUID();
+      const savedPhoto = await preserveReportPhoto(photoUri, reportId);
       await database.write(async () => {
         const assignment = await database.get<WorkAssignment>('work_assignments').find(assignmentId);
         if (!assignment.isAvailable) {
           throw new Error('Задание недоступно. Обновите данные: нужен согласованный договор и фактическая смета.');
         }
-        const reportId = generateUUID();
 
         await database.collections.get('reports').create((record: any) => {
           // Устанавливаем UUID как ID записи для совместимости с Supabase
@@ -260,7 +266,7 @@ export default function ReportFormScreen({ route }: Props) {
           })));
           record.geoLat = geoLat;
           record.geoLon = geoLon;
-          record.photoUri = photoUri;
+          record.photoUri = savedPhoto;
           record.reportSyncStatus = 'pending_sync';
           record.createdAt = new Date();
         });
@@ -272,12 +278,12 @@ export default function ReportFormScreen({ route }: Props) {
         reportNotify('report.savedTitle', 'report.demoSaved');
       } else {
         try {
-          await syncSavedReport();
+          await syncSavedReport(reportId);
           reportNotify('report.sentTitle', 'report.sent');
         } catch (syncError: any) {
           const selectedLanguage = useLanguageStore.getState().language;
           notify(translate(selectedLanguage, 'report.localTitle'), translate(selectedLanguage, 'report.localSaved')
-            + (syncError?.message ? ' ' + reportError(syncError.message, selectedLanguage) : ''));
+            + (syncError?.message ? ' ' + (deliveryMessage(syncError, selectedLanguage) || reportError(syncError.message, selectedLanguage)) : ''));
         }
       }
       navigation.goBack();
@@ -285,6 +291,7 @@ export default function ReportFormScreen({ route }: Props) {
       const selectedLanguage = useLanguageStore.getState().language;
       notify(translate(selectedLanguage, 'common.error'), reportError(err.message, selectedLanguage));
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   };

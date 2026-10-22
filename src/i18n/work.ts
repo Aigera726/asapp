@@ -1,4 +1,5 @@
 import { translate, type Language, type TranslationKey } from './messages';
+import { deliveryMessage } from './delivery';
 
 export const LOCALES: Record<Language, string> = { ru: 'ru-RU', en: 'en-GB', ka: 'ka-GE', az: 'az-AZ' };
 export const WORK_STATUS: Record<string, TranslationKey> = {
@@ -34,6 +35,8 @@ export function displayDate(value: Date | null, language: Language, timeOnly = f
     : { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 export function reportError(message: string | null | undefined, language: Language): string {
+  if (message === 'mobile_delivery_incomplete') return translate(language, 'delivery.retry');
+  if (/^mobile_photo_/.test(message || '')) return deliveryMessage(new Error(message!), language)!;
   if (/нет доступной работы|задание недоступно/i.test(message || '')) return translate(language, 'report.unavailable');
   if (/обновите данные на главном экране/i.test(message || '')) return translate(language, 'report.reloadEstimate');
   return message || translate(language, 'report.saveError');

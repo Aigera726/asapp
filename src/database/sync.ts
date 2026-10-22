@@ -1,12 +1,14 @@
 import { synchronize } from '@nozbe/watermelondb/sync';
 import { Q } from '@nozbe/watermelondb';
-import { File } from 'expo-file-system';
 import { database } from './index';
 import WorkAssignment from './models/WorkAssignment';
 import { removeRetiredWriteOffs, RETIRED_WRITE_OFF_IDS } from '@/lib/legacyWriteOffCleanup';
 import { supabase } from '@/lib/supabase';
 import { isDemoId, referencesDemoData } from '@/lib/demoData';
 import { actualValue, isEligibleAssignment, readAllView, unavailableAssignments } from './assignmentPolicy';
+import { canAcknowledge, deliveryFingerprint, onlySyncMetadata, DeliveryError, type DeliveryReceipt, type DeliveryIssue } from '@/lib/sync-delivery';
+import { localReportPhoto, reportPhotoBytes } from '@/lib/report-photo';
+import { useSyncStore } from '@/store/syncStore';
 
 /**
  * Синхронизация WatermelonDB ↔ Supabase УСП.
@@ -267,9 +269,15 @@ function isMissingTable(error: { code?: string; message?: string } | null): bool
 let inFlight: Promise<void> | null = null;
 
 /** A saved report must not join a sync whose push snapshot predates it. */
-export async function syncSavedReport(): Promise<void> {
+export async function syncSavedReport(reportId?: string): Promise<void> {
   if (inFlight) await inFlight.catch(() => undefined);
-  await syncDatabase();
+  try { await syncDatabase(); }
+  catch (error) {
+    // Another queued report may have failed; the form must report its own result.
+    const own = reportId ? await database.get('reports').find(reportId).catch(() => null) : null;
+    if ((own?._raw as any)?.sync_status === 'synced') return;
+    throw error;
+  }
 }
 
 export function syncDatabase(forceFullSync: boolean = false): Promise<void> {
@@ -286,6 +294,8 @@ export function syncDatabase(forceFullSync: boolean = false): Promise<void> {
 }
 
 async function runSync(_forceFullSync: boolean): Promise<void> {
+  const receipts: DeliveryReceipt[] = [], issues: DeliveryIssue[] = [];
+  useSyncStore.getState().setIssues([]);
   await removeRetiredWriteOffs();
   await synchronize({
     database,
@@ -418,16 +428,10 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
     // ─────────────────────────────────────────────────────────────────────
     pushChanges: async ({ changes }) => {
       const client = supabase.schema(MOBILE_SCHEMA);
-      const reportChanges = (changes as any).reports;
-      for (const row of [...(reportChanges?.created ?? []), ...(reportChanges?.updated ?? [])]) {
-        if (isDemoId(row.id) || referencesDemoData(row)) continue;
-        const assignment = await database.get<WorkAssignment>('work_assignments').find(row.assignment_id).catch(() => null);
-        if (!assignment?.isAvailable) {
-          throw new Error(`Отчёт сохранён на устройстве, но задание ${row.assignment_id} больше недоступно. Нужен согласованный договор и фактическая смета.`);
-        }
-      }
-
-      const reportFailures: string[] = [];
+      const rejected: Record<string, string[]> = {};
+      const reject = (table: string, id: string, code: DeliveryIssue['code'], detail?: string) => {
+        (rejected[table] ||= []).push(id); issues.push({ table, id, code, detail });
+      };
       for (const table of PUSH_ORDER) {
         const raw = (changes as any)[table];
         if (!raw) continue;
@@ -447,38 +451,34 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
         const deleted = (raw.deleted ?? []).filter((id: string) => !isDemoId(id));
 
         if (deleted.length > 0) {
-          const { error } = await client.from(table).delete().in('id', deleted);
-          if (error) {
-            if (isMissingTable(error)) {
-              console.warn(`[Sync] ${table} нет на сервере — удаление пропущено`);
-            } else {
-              throw new Error(`Ошибка удаления ${table}: ${error.message}`);
-            }
-          }
+          try {
+            const { error } = await client.from(table).delete().in('id', deleted);
+            if (error) throw error;
+          } catch (error: any) { deleted.forEach((id: string) => reject(table, id, 'write', error.message)); }
         }
 
         const all = [...created, ...updated];
         if (all.length === 0) continue;
 
-        const records = [];
+        const records = [], originals = new Map<string, any>();
         for (const row of all) {
+          // Local-only acknowledgement needs no server upsert (and no new photo upload).
+          if (onlySyncMetadata(row)) continue;
+          if (table === 'reports') {
+            const assignment = await database.get<WorkAssignment>('work_assignments').find(row.assignment_id).catch(() => null);
+            if (!assignment?.isAvailable) { reject(table, row.id, 'assignment'); continue; }
+          }
           const { _status, _changed, sync_status, updated_at, ...fields } = row;
+          try {
           // Старые отчёты без даты (0): пусть сервер оставит свою, а не получит 1970 год.
           if (table === 'reports' && !fields.created_at) delete fields.created_at;
           if (table === 'reports' && typeof fields.resource_usage === 'string') {
             fields.resource_usage = JSON.parse(fields.resource_usage);
           }
 
-          if (table === 'reports' && fields.photo_uri?.startsWith('file:')) {
-            try {
-              const remoteUrl = await uploadFileToSupabase(fields.photo_uri);
-              // Локальный file:// путь на сервере бесполезен и в чужих
-              // клиентах превратится в битую картинку — лучше пустое поле.
-              fields.photo_uri = remoteUrl ?? null;
-            } catch (uploadError) {
-              console.warn(`[Sync] Фото не загружено для ${fields.id}:`, uploadError);
-              fields.photo_uri = null;
-            }
+          if (table === 'reports' && localReportPhoto(fields.photo_uri)) {
+            try { fields.photo_uri = await uploadFileToSupabase(fields.photo_uri, fields.id); }
+            catch (error: any) { reject(table, row.id, 'photo', error.message); continue; }
           }
 
           for (const key in fields) {
@@ -492,42 +492,40 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
           }
 
           records.push(fields);
+          originals.set(row.id, row);
+          } catch (error: any) { reject(table, row.id, 'write', error.message); }
         }
 
         console.info(`[Sync] Отправка ${records.length} записей в ${table}`);
         if (table === 'reports') {
           // По одному: ERP может отклонить отчёт сверх остатка объёма, и
           // такой отчёт не должен задерживать остальные.
-          const failed: string[] = [];
           for (const record of records) {
-            const { error } = await client.from(table).upsert(record);
-            if (error) failed.push(`${record.reported_quantity}: ${error.message}`);
+            try {
+              const { error } = await client.from(table).upsert(record);
+              if (error) throw error;
+              receipts.push({ table, id: record.id, fingerprint: deliveryFingerprint(originals.get(record.id)) });
+            } catch (error: any) { reject(table, record.id, 'write', error.message); }
           }
-          if (failed.length > 0) reportFailures.push(...failed);
           continue;
         }
-        const { error } = await client.from(table).upsert(records);
-        if (error) {
-          if (isMissingTable(error)) {
-            console.warn(
-              `[Sync] ${table} нет на сервере: ${records.length} записей остались локально. ` +
-                'Примените sql/usp/01_mobile_schema.sql.'
-            );
-            continue;
-          }
-          throw new Error(`Ошибка отправки ${table}: ${error.message} (${error.hint || ''})`);
-        }
+        if (!records.length) continue;
+        try {
+          const { error } = await client.from(table).upsert(records);
+          if (error) throw error;
+          records.forEach(row => receipts.push({ table, id: row.id, fingerprint: deliveryFingerprint(originals.get(row.id)) }));
+        } catch (error: any) { records.forEach(row => reject(table, row.id, 'write', error.message)); }
       }
-      // Остальные таблицы уже отправлены; отклонённые отчёты остаются локально.
-      if (reportFailures.length > 0) {
-        throw new Error(`ERP не принял отчётов: ${reportFailures.length}.\n${reportFailures.join('\n')}`);
-      }
+      // Watermelon acknowledges only accepted versions. Failed rows retain their dirty state for retry.
+      return { experimentalRejectedIds: rejected };
     },
 
     migrationsEnabledAtVersion: 1,
   });
 
-  await markPushedRecordsAsSynced();
+  await markPushedRecordsAsSynced(receipts);
+  useSyncStore.getState().setIssues(issues);
+  if (issues.length) throw new DeliveryError(issues);
 }
 
 /** Строки из витрин повторяются: одна работа приносит один и тот же договор. */
@@ -562,6 +560,8 @@ async function mapToChanges(table: string, records: any[] | null, reconcileDelet
       }
     }
     if (!row.updated_at) row.updated_at = Date.now();
+    // A server snapshot is already delivered; it must not erase the local display status.
+    if (database.schema.tables[table]?.columns.sync_status) row.sync_status = 'synced';
     return row;
   });
 
@@ -604,36 +604,23 @@ async function mapToChanges(table: string, records: any[] | null, reconcileDelet
  * этого шага отправленные записи навсегда оставались бы в списке «ожидают
  * отправки».
  */
-async function markPushedRecordsAsSynced(): Promise<void> {
+async function markPushedRecordsAsSynced(receipts: DeliveryReceipt[]): Promise<void> {
   // Модель отчёта назвала поле reportSyncStatus, остальные — recordSyncStatus.
   // Присваивать оба вслепую нельзя: у модели нет недекорированного свойства,
   // и запись ушла бы в пустоту вместо колонки.
   const FIELD: Record<string, string> = { reports: 'reportSyncStatus' };
 
-  for (const { table } of MOBILE_TABLES) {
-    try {
-      const pending = await database.collections
-        .get(table)
-        .query(Q.where('sync_status', 'pending_sync'))
-        .fetch();
-      if (pending.length === 0) continue;
-
-      const field = FIELD[table] ?? 'recordSyncStatus';
-      await database.write(async () => {
-        await database.batch(
-          ...pending.map((rec) =>
-            rec.prepareUpdate((r: any) => {
-              r[field] = 'synced';
-            })
-          )
-        );
-      });
-    } catch {
-      // Часть таблиц (закупки, документы) колонки sync_status не имеет —
-      // запрос по ней здесь ожидаемо падает и ничего не значит.
-      continue;
+  if (!receipts.length) return;
+  await database.write(async () => {
+    const updates = [];
+    for (const receipt of receipts) {
+      const record = await database.get(receipt.table).find(receipt.id).catch(() => null);
+      if (!record || !canAcknowledge(record._raw, receipt)) continue;
+      const field = FIELD[receipt.table] ?? 'recordSyncStatus';
+      updates.push(record.prepareUpdate((row: any) => { row[field] = 'synced'; }));
     }
-  }
+    if (updates.length) await database.batch(...updates);
+  });
 }
 
 /**
@@ -643,31 +630,19 @@ async function markPushedRecordsAsSynced(): Promise<void> {
  * Blob из локального файла приходит без данных, и в бакет улетал файл нулевого
  * размера — фотоподтверждения работ фактически терялись.
  */
-async function uploadFileToSupabase(localUri: string): Promise<string | null> {
-  try {
-    const originalName = localUri.split('/').pop() || 'photo.jpg';
-    const filePath = `reports/${Date.now()}-${originalName}`;
-
-    const bytes = await new File(localUri).bytes();
+async function uploadFileToSupabase(localUri: string, reportId: string): Promise<string> {
+    const filePath = `reports/${reportId}/photo.jpg`;
+    const bytes = await reportPhotoBytes(localUri);
     if (bytes.byteLength === 0) {
-      console.error('[Storage] Локальный файл пуст:', localUri);
-      return null;
+      throw new Error('mobile_photo_unavailable');
     }
 
     const { data, error } = await supabase.storage
       .from('report-photos')
       .upload(filePath, bytes, { contentType: 'image/jpeg', upsert: true });
 
-    if (error) {
-      console.error('[Storage] Upload error:', error);
-      return null;
-    }
-
+    if (error || !data?.path) throw new Error('mobile_photo_upload_failed');
     return supabase.storage.from('report-photos').getPublicUrl(data.path).data.publicUrl;
-  } catch (err) {
-    console.error('[Storage] Exception during upload:', err);
-    return null;
-  }
 }
 
 /** Список таблиц для экрана диагностики. */

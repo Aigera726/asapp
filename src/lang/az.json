@@ -685,5 +685,10 @@
   "ui.delivered": "Çatdırılıb",
   "ui.cancelled": "Ləğv edilib",
   "dates.today": "bu gün {time}",
-  "dates.yesterday": "dünən {time}"
+  "dates.yesterday": "dünən {time}",
+  "delivery.remaining": "Cihazda qalan: {count}. Digər qeydlər göndərildi. Səbəbləri aradan qaldırın və yenidən sinxronlaşdırın.",
+  "delivery.assignment": "Tapşırıq əlçatan deyil. Hesabat cihazda saxlanılıb; müqaviləni və işi yoxlayın.",
+  "delivery.photo": "Foto yüklənmədi. Hesabat və foto təkrar göndərilmək üçün cihazda saxlanılıb.",
+  "delivery.write": "Server qeydi təsdiqləmədi. Qeyd təkrar göndərilmək üçün cihazda saxlanılıb.",
+  "delivery.retry": "Bəzi qeydlər cihazda qaldı. Təfərrüatlar Sinxronlaşdırma bölməsindədir."
 }

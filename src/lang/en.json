@@ -685,5 +685,10 @@
   "ui.delivered": "Delivered",
   "ui.cancelled": "Cancelled",
   "dates.today": "today {time}",
-  "dates.yesterday": "yesterday {time}"
+  "dates.yesterday": "yesterday {time}",
+  "delivery.remaining": "Still on this device: {count}. Other records were sent. Resolve the issues and sync again.",
+  "delivery.assignment": "Assignment unavailable. The report is saved on this device; check the contract and work.",
+  "delivery.photo": "Photo upload failed. The report and photo are saved on this device for retry.",
+  "delivery.write": "The server did not confirm this record. It is saved on this device for retry.",
+  "delivery.retry": "Some records remain on this device. See Synchronization for details."
 }
