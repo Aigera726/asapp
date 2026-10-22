@@ -3,6 +3,8 @@
   "version": "1.1.0",
   "main": "index.ts",
   "scripts": {
+    "test:auto-sync": "node scripts/test-auto-sync.cjs",
+    "test:report-price": "node scripts/test-report-price.cjs",
     "test:report-photos": "node scripts/test-report-photo-ui.cjs",
     "test:auth-connection": "node scripts/test-auth-connection.cjs",
     "test:durable-queue": "node scripts/test-durable-queue.cjs",

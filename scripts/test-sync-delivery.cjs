@@ -56,6 +56,13 @@ test('a report created during push stays pending and is sent by the next sync',a
  await f.api.syncDatabase();assert.equal(f.tables.reports[0].sync_status,'synced');assert.equal(f.tables.reports[1].sync_status,'pending_sync');assert.equal(f.tables.reports[1]._status,'created');
  await f.api.syncDatabase();assert.equal(f.tables.reports[1].sync_status,'synced');assert.deepEqual(f.writes.map(w=>w.record.id),['first','new']);
 });
+
+test('automatic reconnection waits for the existing snapshot then sends the newly queued report',async()=>{
+ let release,entered;const gate=new Promise(ok=>{release=ok}),started=new Promise(ok=>{entered=ok});let first=true;
+ const f=fixture([raw('first')],{duringPush:async()=>{if(first){first=false;entered();await gate;}}});
+ const running=f.api.syncDatabase();await started;f.tables.reports.push(raw('later'));const retry=f.api.syncPendingReports();release();await Promise.all([running,retry]);
+ assert.deepEqual(f.writes.map(w=>w.record.id),['first','later']);assert.equal(f.tables.reports[1].sync_status,'synced');
+});
 test('a report edited while sending is not acknowledged as the newer version',async()=>{
  let edited=false;const f=fixture([raw('edited')],{duringPush:async(_r,tables)=>{if(!edited){edited=true;Object.assign(tables.reports[0],{reported_quantity:3,_status:'updated',_changed:'reported_quantity'});}}});
  await f.api.syncDatabase();assert.equal(f.tables.reports[0].sync_status,'pending_sync');await f.api.syncDatabase();assert.equal(f.tables.reports[0].sync_status,'synced');assert.deepEqual(f.writes.map(w=>w.record.reported_quantity),[2,3]);

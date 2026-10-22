@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DatabaseProvider } from '@/database/DatabaseProvider';
 import RootNavigation from '@/navigation';
 import ServerStatusBar from '@/components/ServerStatusBar';
+import AutoSync from '@/components/AutoSync';
 import { BrandLockup } from '@/components/Brand';
 import { useConfigStore } from '@/store/configStore';
 import { T } from '@/theme';
@@ -44,6 +45,7 @@ export default function App() {
           </View>
         ) : (
           <DatabaseProvider>
+            <AutoSync />
             <ServerStatusBar />
             <RootNavigation />
           </DatabaseProvider>

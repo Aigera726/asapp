@@ -269,6 +269,12 @@ function isMissingTable(error: { code?: string; message?: string } | null): bool
  */
 let inFlight: Promise<void> | null = null;
 
+/** Reconnection must not join a push whose snapshot predates a queued report. */
+export async function syncPendingReports(): Promise<void> {
+  if (inFlight) await inFlight.catch(() => undefined);
+  await syncDatabase();
+}
+
 /** A saved report must not join a sync whose push snapshot predates it. */
 export async function syncSavedReport(reportId?: string): Promise<void> {
   if (inFlight) await inFlight.catch(() => undefined);

@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import ReportPhotoInput from '@/components/ReportPhotoInput';
+import ReportPricePreview from '@/components/ReportPricePreview';
 import { database } from '@/database';
 import { syncSavedReport } from '@/database/sync';
 import { preserveReportPhoto } from '@/lib/report-photo';
@@ -397,10 +398,12 @@ export default function ReportFormScreen({ route }: Props) {
                 )}
               </View>
 
+              <ReportPricePreview assignmentId={assignmentId} quantity={workQty} demo={isDemoMode} />
+
               {/* Ресурсы фактической сметы */}
               {writeOffLines.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.label}>{t('report.resources')}</Text>
+                  <Text style={styles.label}>{t('report.resourcesByNorm')}</Text>
                   {!hasWorkQty ? (
                     <View style={styles.emptyNote}>
                       <Icon name="calculator-variant-outline" size={18} color={E.muted} />
@@ -416,10 +419,12 @@ export default function ReportFormScreen({ route }: Props) {
                               {line.resource.norm == null ? t('report.noNorm') : `${fmtQty(line.resource.norm)} × ${fmtQty(workQty)} = ${fmtQty(line.planned)}`} {line.displayUnit}
                             </Text>
                             <Text style={[styles.writeOffNorm, line.shortage && styles.writeOffWarn]}>
-                              {t('report.byEstimate', { quantity: line.resource.quantity == null ? '—' : fmtQty(line.resource.quantity), unit: line.displayUnit })}
+                              {t('report.totalEstimateResource', { quantity: line.resource.quantity == null ? '—' : fmtQty(line.resource.quantity), unit: line.displayUnit })}
                               {line.shortage ? ' · ' + t('report.aboveEstimate') : ''}
                             </Text>
                           </View>
+                          <View style={styles.writeOffActual}>
+                          <Text style={[styles.writeOffNorm, { textAlign: 'right' }]}>{t('report.actualResourceQuantity')}</Text>
                           <TextInput
                             accessibilityLabel={t('report.usageLabel', { name: line.displayName })}
                             style={[styles.writeOffInput, line.shortage && styles.writeOffInputWarn]}
@@ -431,6 +436,7 @@ export default function ReportFormScreen({ route }: Props) {
                             returnKeyType="done"
                             onSubmitEditing={Keyboard.dismiss}
                           />
+                          </View>
                         </View>
                       ))}
                       <Text style={styles.tableNote}>
@@ -608,6 +614,7 @@ const styles = StyleSheet.create({
   writeOffInfo: { flex: 1, minWidth: 0 },
   writeOffName: { fontSize: 14, fontWeight: '600', color: E.ink, marginBottom: 4, lineHeight: 19 },
   writeOffNorm: { fontSize: 11, lineHeight: 16, color: E.muted },
+  writeOffActual: { width: 92, alignItems: 'flex-end', gap: 4 },
   writeOffWarn: { color: S.danger, fontWeight: '600' },
   writeOffInput: { width: 92, backgroundColor: E.paper, borderWidth: 1, borderColor: E.line, borderRadius: 9, paddingVertical: 10, paddingHorizontal: 8, fontSize: 15, fontWeight: '600', color: E.ink, textAlign: 'center' },
   writeOffInputWarn: { borderColor: S.danger },
