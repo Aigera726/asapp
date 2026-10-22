@@ -17,11 +17,15 @@ export async function preserveReportPhoto(uri: string | null, reportId: string):
       reader.readAsDataURL(blob);
     });
   }
-  const folder = new Directory(Paths.document, 'report-photos');
-  folder.create({ idempotent: true, intermediates: true });
-  const original = new File(uri), saved = new File(folder, reportId + '.jpg');
-  if (original.uri !== saved.uri) original.copy(saved);
-  return saved.uri;
+  try {
+    const folder = new Directory(Paths.document, 'report-photos');
+    folder.create({ idempotent: true, intermediates: true });
+    const original = new File(uri), saved = new File(folder, reportId + '.jpg');
+    if (original.uri !== saved.uri) original.copy(saved);
+    return saved.uri;
+  } catch (error) {
+    throw new Error('mobile_storage_failed', { cause: error });
+  }
 }
 
 export async function reportPhotoBytes(uri: string): Promise<ArrayBuffer | Uint8Array> {

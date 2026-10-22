@@ -77,6 +77,7 @@ export default function ReportFormScreen({ route }: Props) {
   const [comment, setComment] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const savingRef = useRef(false);
+  const capturingRef = useRef(false);
   const [showCamera, setShowCamera] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
@@ -179,12 +180,18 @@ export default function ReportFormScreen({ route }: Props) {
   };
 
   const capturePhoto = async () => {
-    if (cameraRef.current) {
+    try {
+      if (!cameraRef.current || capturingRef.current) return;
+      capturingRef.current = true;
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
       if (photo) {
         setPhotoUri(photo.uri);
         setShowCamera(false);
       }
+    } catch {
+      reportNotify('common.error', 'delivery.camera');
+    } finally {
+      capturingRef.current = false;
     }
   };
 

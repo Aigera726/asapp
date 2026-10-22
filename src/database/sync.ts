@@ -9,6 +9,7 @@ import { actualValue, isEligibleAssignment, readAllView, unavailableAssignments 
 import { canAcknowledge, deliveryFingerprint, onlySyncMetadata, DeliveryError, type DeliveryReceipt, type DeliveryIssue } from '@/lib/sync-delivery';
 import { localReportPhoto, reportPhotoBytes } from '@/lib/report-photo';
 import { useSyncStore } from '@/store/syncStore';
+import { clearDeliveredCache } from './safe-reset';
 
 /**
  * Синхронизация WatermelonDB ↔ Supabase УСП.
@@ -286,11 +287,22 @@ export function syncDatabase(forceFullSync: boolean = false): Promise<void> {
     return inFlight;
   }
 
-  inFlight = runSync(forceFullSync).finally(() => {
-    inFlight = null;
-  });
+  return trackSync(runSync(forceFullSync));
+}
 
-  return inFlight;
+function trackSync(operation: Promise<void>): Promise<void> {
+  const tracked = operation.finally(() => { if (inFlight === tracked) inFlight = null; });
+  inFlight = tracked;
+  return tracked;
+}
+
+/** Serialize reset with synchronization; the guard itself runs under the database writer lock. */
+export function resetCacheSafely(): Promise<void> {
+  const previous = inFlight?.catch(() => undefined) ?? Promise.resolve();
+  return trackSync(previous.then(async () => {
+    await clearDeliveredCache(database, SYNCED_TABLES, PUSH_ORDER);
+    await runSync(true);
+  }));
 }
 
 async function runSync(_forceFullSync: boolean): Promise<void> {
@@ -631,11 +643,14 @@ async function markPushedRecordsAsSynced(receipts: DeliveryReceipt[]): Promise<v
  * размера — фотоподтверждения работ фактически терялись.
  */
 async function uploadFileToSupabase(localUri: string, reportId: string): Promise<string> {
-    const filePath = `reports/${reportId}/photo.jpg`;
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.user?.id) throw new Error('mobile_photo_session');
+    const filePath = `reports/${session.user.id}/${reportId}/photo.jpg`;
     const bytes = await reportPhotoBytes(localUri);
     if (bytes.byteLength === 0) {
       throw new Error('mobile_photo_unavailable');
     }
+    if (bytes.byteLength > 10 * 1024 * 1024) throw new Error('mobile_photo_too_large');
 
     const { data, error } = await supabase.storage
       .from('report-photos')

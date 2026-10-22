@@ -36,7 +36,7 @@ export function displayDate(value: Date | null, language: Language, timeOnly = f
 }
 export function reportError(message: string | null | undefined, language: Language): string {
   if (message === 'mobile_delivery_incomplete') return translate(language, 'delivery.retry');
-  if (/^mobile_photo_/.test(message || '')) return deliveryMessage(new Error(message!), language)!;
+    if (/^mobile_(photo|storage)_/.test(message || '')) return deliveryMessage(new Error(message!), language)!;
   if (/нет доступной работы|задание недоступно/i.test(message || '')) return translate(language, 'report.unavailable');
   if (/обновите данные на главном экране/i.test(message || '')) return translate(language, 'report.reloadEstimate');
   return message || translate(language, 'report.saveError');

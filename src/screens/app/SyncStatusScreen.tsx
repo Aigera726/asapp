@@ -17,7 +17,8 @@ import { withObservables } from '@nozbe/watermelondb/react';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@/database';
 import { useNavigation } from '@react-navigation/native';
-import { syncDatabase, SYNCED_TABLES } from '@/database/sync';
+import { syncDatabase, resetCacheSafely } from '@/database/sync';
+import { PendingLocalDataError } from '@/database/safe-reset';
 import { ScreenHeader } from '@/components/ui';
 import Report from '@/database/models/Report';
 import PurchaseRequest from '@/database/models/PurchaseRequest';
@@ -25,6 +26,7 @@ import { T } from '@/theme';
 import { getStatusLabel } from '@/lib/statusLabels';
 import { useSyncStore } from '@/store/syncStore';
 import { deliveryMessage } from '@/i18n/delivery';
+import { notify } from '@/lib/alert';
 
 // Fix 1.4: _status is a WatermelonDB internal meta-field that cannot be used
 // with Q.where(). Fetch all purchase_requests reactively and filter in JS.
@@ -70,7 +72,7 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
 
     const netState = await NetInfo.fetch();
     if (!netState.isConnected) {
-      Alert.alert(
+      notify(
         t("ui.no_connection"),
         t("ui.synchronization_is_unavailable_data_will_be_sent_when_the")
       );
@@ -84,59 +86,44 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
       await syncDatabase(force);
 
       setLastSyncTime(new Date().toLocaleTimeString(LOCALES[language]));
-      Alert.alert(
+      notify(
         force ? t("ui.full_download_completed") : t("ui.synchronization_completed"),
         t("ui.all_data_updated_successfully")
       );
     } catch (err: any) {
       console.error('[SyncScreen] Error:', err);
-      Alert.alert(t("home.syncErrorTitle"), deliveryMessage(err, language) || err.message || t("ui.please_try_again"));
+      notify(t("home.syncErrorTitle"), deliveryMessage(err, language) || err.message || t("ui.please_try_again"));
     } finally {
       setIsSyncing(false);
     }
   };
 
   const handleReset = async () => {
-    Alert.alert(
-      t("ui.reset_local_database"),
-      t("ui.this_removes_all_local_data_and_downloads_it_again"),
-      [
-        { text: t("common.cancel"), style: 'cancel' },
-        {
-          text: t("ui.reset"),
-          style: 'destructive',
-          onPress: async () => {
-            setIsSyncing(true);
-            try {
-              // Reset database to empty state
-              await database.write(async () => {
-                // Список берём из слоя синхронизации, а не дублируем здесь:
-                // раньше он расходился с реальным набором таблиц, и часть
-                // данных переживала «полный сброс».
-                for (const table of SYNCED_TABLES) {
-                  const collection = (database as any).get(table);
-                  const records = await collection.query().fetch();
-                  for (const record of records) {
-                    await record.destroyPermanently();
-                  }
-                }
-              });
-
-              // Force full sync
-              await syncDatabase(true);
-              
-              setLastSyncTime(new Date().toLocaleTimeString(LOCALES[language]));
-              Alert.alert(t("ui.database_restored"), t("ui.all_data_reloaded"));
-            } catch (err: any) {
-              console.error('[Reset] Error:', err);
-              Alert.alert(t("common.error"), err.message ?? t("ui.could_not_reset_the_local_database"));
-            } finally {
-              setIsSyncing(false);
-            }
-          },
-        },
-      ]
-    );
+    if (isSyncing) return;
+    const performReset = async () => {
+      setIsSyncing(true);
+      try {
+        await resetCacheSafely();
+        setLastSyncTime(new Date().toLocaleTimeString(LOCALES[language]));
+        notify(t('ui.database_restored'), t('ui.all_data_reloaded'));
+      } catch (err: any) {
+        console.error('[Reset] Error:', err);
+        notify(t('common.error'), err instanceof PendingLocalDataError
+          ? t('delivery.resetBlocked', { count: err.count })
+          : deliveryMessage(err, language) || err.message || t('ui.could_not_reset_the_local_database'));
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+    const title = t('ui.reset_local_database'), message = t('ui.this_removes_all_local_data_and_downloads_it_again');
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${title}\n\n${message}`)) await performReset();
+    } else {
+      Alert.alert(title, message, [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('ui.reset'), style: 'destructive', onPress: performReset },
+      ]);
+    }
   };
 
   const renderReport = ({ item }: { item: Report; index: number }) => (

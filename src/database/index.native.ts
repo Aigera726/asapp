@@ -2,17 +2,14 @@ import { Database } from '@nozbe/watermelondb';
 import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
 import LokiJSAdapter from '@nozbe/watermelondb/adapters/lokijs';
 import { NativeModules } from 'react-native';
+import { persistentLokiStorage, durableLokiWrites } from './durable-loki';
+import { nativeSnapshotStorage } from './native-file-store';
 import { schema } from './schema';
 import { migrations } from './migrations';
 import { modelClasses } from './models';
 
-// Нативный модуль WatermelonDB присутствует только в dev-client/релизной
-// сборке; в обычном Expo Go его нет, поэтому там откатываемся на LokiJS.
-// Модуль регистрируется в нативном коде под именем WMDatabaseBridge
-// (см. native/android/.../WMDatabaseBridge.java), а не "WatermelonDB" —
-// с неверным именем эта проверка всегда была false, и приложение молча
-// уходило на LokiJS даже в релизной сборке, где LokiJS полагается на
-// IndexedDB, недоступный в React Native, и падает при инициализации.
+// Expo Go has no Watermelon native bridge or IndexedDB. Persist its Loki database
+// in document files with an atomic AsyncStorage pointer, and await every write.
 const isNativeAvailable = NativeModules.WMDatabaseBridge != null;
 
 let adapter;
@@ -27,16 +24,17 @@ if (isNativeAvailable) {
     },
   });
 } else {
-  console.warn('[WatermelonDB] Native module not found. Falling back to LokiJS (Expo Go compatibility mode).');
-  adapter = new LokiJSAdapter({
+  const extraLokiOptions = { adapter: persistentLokiStorage(nativeSnapshotStorage()), autosave: false };
+  adapter = durableLokiWrites(new LokiJSAdapter({
     schema,
     migrations,
     useWebWorker: false,
     useIncrementalIndexedDB: false,
+    extraLokiOptions,
     onSetUpError: (err: Error) => {
       console.error('[WatermelonDB] LokiJS setup error:', err);
     },
-  });
+  }));
 }
 
 export const database = new Database({

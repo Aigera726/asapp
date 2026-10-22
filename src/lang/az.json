@@ -690,5 +690,9 @@
   "delivery.assignment": "Tapşırıq əlçatan deyil. Hesabat cihazda saxlanılıb; müqaviləni və işi yoxlayın.",
   "delivery.photo": "Foto yüklənmədi. Hesabat və foto təkrar göndərilmək üçün cihazda saxlanılıb.",
   "delivery.write": "Server qeydi təsdiqləmədi. Qeyd təkrar göndərilmək üçün cihazda saxlanılıb.",
-  "delivery.retry": "Bəzi qeydlər cihazda qaldı. Təfərrüatlar Sinxronlaşdırma bölməsindədir."
+  "delivery.retry": "Bəzi qeydlər cihazda qaldı. Təfərrüatlar Sinxronlaşdırma bölməsindədir.",
+  "delivery.resetBlocked": "Sıfırlama bloklanıb: cihazda {count} göndərilməmiş dəyişiklik qalıb. Əvvəlcə sinxronlaşdırın.",
+  "delivery.storage": "Məlumatları cihazda saxlamaq mümkün olmadı. Boş yaddaşı yoxlayın və yenidən saxlayın. Hesabat hələ saxlanmayıb.",
+  "delivery.camera": "Şəkil çəkmək mümkün olmadı. Yenidən cəhd edin.",
+  "delivery.photoTooLarge": "Şəklin ölçüsü 10 MB-dan böyükdür. Daha kiçik şəkil çəkin."
 }
