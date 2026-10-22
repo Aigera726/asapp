@@ -1,6 +1,8 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { observeSessionNotice } from './auth-connection';
+import { useSessionNoticeStore } from '@/store/sessionNoticeStore';
 
 /**
  * Клиент Supabase.
@@ -15,7 +17,9 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const authOptions = {
   storage: AsyncStorage,
-  autoRefreshToken: true,
+  // RootNavigation restores the session with a visible error state, then starts
+  // automatic refresh while the app is active (including after server changes).
+  autoRefreshToken: false,
   persistSession: true,
   detectSessionInUrl: false,
 };
@@ -43,6 +47,7 @@ export let supabase: SupabaseClient = createClient(
   currentKey || PLACEHOLDER_KEY,
   { auth: authOptions }
 );
+let sessionNoticeSubscription = observeSessionNotice(supabase, notice => useSessionNoticeStore.getState().setNotice(notice));
 
 export const reinitializeSupabase = (url: string | null, key: string | null) => {
   const nextUrl = url || envUrl;
@@ -54,6 +59,7 @@ export const reinitializeSupabase = (url: string | null, key: string | null) => 
   }
 
   // Старый клиент продолжал бы обновлять токен и соперничать за блокировку.
+  sessionNoticeSubscription.unsubscribe();
   try {
     supabase.auth.stopAutoRefresh();
   } catch (e) {
@@ -67,6 +73,8 @@ export const reinitializeSupabase = (url: string | null, key: string | null) => 
     nextKey || PLACEHOLDER_KEY,
     { auth: authOptions }
   );
+  useSessionNoticeStore.getState().setNotice(null);
+  sessionNoticeSubscription = observeSessionNotice(supabase, notice => useSessionNoticeStore.getState().setNotice(notice));
 
   return supabase;
 };

@@ -2,7 +2,8 @@ import 'react-native-url-polyfill/auto';
 import 'react-native-get-random-values';
 import './src/styles/global.css';
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, LogBox, StyleSheet } from 'react-native';
+import { HANDLED_SESSION_LOGS } from '@/lib/auth-connection';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -13,6 +14,8 @@ import { BrandLockup } from '@/components/Brand';
 import { useConfigStore } from '@/store/configStore';
 import { T } from '@/theme';
 import { useLanguageStore, useTranslation } from '@/i18n';
+
+LogBox.ignoreLogs(HANDLED_SESSION_LOGS);
 
 export default function App() {
   const { isLoaded, loadConfig } = useConfigStore();

@@ -10,6 +10,7 @@ import { seedDemoData } from '@/lib/demoData';
 import { A, AuthLayout, AuthField, AuthButton, authStyles as styles } from '@/components/AuthLayout';
 import { useTranslation, useLanguageStore } from '@/i18n';
 import { authError, translate } from '@/i18n/messages';
+import { useSessionNoticeStore } from '@/store/sessionNoticeStore';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -25,6 +26,7 @@ type Props = {
  */
 export default function LoginScreen({ navigation }: Props) {
   const { t } = useTranslation();
+  const sessionNotice = useSessionNoticeStore(state => state.notice);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { signIn, isLoading, enterDemoMode } = useAuthStore();
@@ -59,6 +61,9 @@ export default function LoginScreen({ navigation }: Props) {
 
   return (
     <AuthLayout title={t('login.title')} subtitle={t('login.subtitle')}>
+      {sessionNotice && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.note}>
+        {t(sessionNotice === 'expired' ? 'login.sessionExpired' : 'login.restoreFailed')}
+      </Text>}
       <AuthField label={t('auth.email')} icon="email-outline" value={email} onChangeText={setEmail} placeholder="name@company.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" autoComplete="email" />
       <AuthField label={t('auth.password')} icon="lock-outline" value={password} onChangeText={setPassword} placeholder={t('login.passwordPlaceholder')} secureTextEntry textContentType="password" autoComplete="current-password" returnKeyType="go" onSubmitEditing={handleSignIn} />
       <AuthButton title={t('login.submit')} busy={isLoading} onPress={handleSignIn} />

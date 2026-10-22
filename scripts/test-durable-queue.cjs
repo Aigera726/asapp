@@ -45,7 +45,7 @@ test('real WatermelonDB in the Expo Go fallback restores the dirty report and ph
  const Loki=require('@nozbe/watermelondb/adapters/lokijs').default;
  class Report extends Model{static table='reports';}
  const schema=appSchema({version:1,tables:[tableSchema({name:'reports',columns:[{name:'photo_uri',type:'string'},{name:'reported_quantity',type:'number'},{name:'sync_status',type:'string'}]})]});
- const s=storage();const open=()=>new Database({adapter:durableLokiWrites(new Loki({dbName:'expo-go-reopen',schema,useWebWorker:false,useIncrementalIndexedDB:false,extraLokiOptions:{adapter:persistentLokiStorage(s),autosave:false}})),modelClasses:[Report]});
+ const s=storage();const open=()=>new Database({adapter:durableLokiWrites(new Loki({dbName:'expo-go-reopen',schema,useWebWorker:false,useIncrementalIndexedDB:true,extraLokiOptions:{adapter:persistentLokiStorage(s),autosave:false}})),modelClasses:[Report]});
  const first=open();await first.write(()=>first.get('reports').create(r=>{r._raw.id='report';r._raw.photo_uri='file:///documents/report.jpg';r._raw.reported_quantity=44;r._raw.sync_status='pending_sync';}));
  const reopened=open(),r=await reopened.get('reports').find('report');assert.equal(r._raw.reported_quantity,44);assert.equal(r._raw.photo_uri,'file:///documents/report.jpg');assert.equal(r._raw._status,'created');assert.equal(r._raw.sync_status,'pending_sync');
  const fetchLocalChanges=require('@nozbe/watermelondb/sync/impl/fetchLocal').default;const changes=await fetchLocalChanges(reopened);assert.equal(changes.changes.reports.created[0].id,'report');

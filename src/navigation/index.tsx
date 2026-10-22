@@ -2,11 +2,14 @@ import React, { useEffect } from 'react';
 import { NavigationContainer, DefaultTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
+import { AppState, View, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/lib/supabase';
+import { connectAuthSession } from '@/lib/auth-connection';
+import { useSessionNoticeStore } from '@/store/sessionNoticeStore';
+import { useConfigStore } from '@/store/configStore';
 import { Icon, IconName } from '@/components/Icon';
 import { T } from '@/theme';
 import { useTranslation } from '@/i18n';
@@ -255,22 +258,21 @@ const navigationTheme: Theme = {
 export default function RootNavigation() {
   const { session, contractorId, isAdmin, isDemoMode, profileLoaded, setSession } =
     useAuthStore();
+  const server = useConfigStore(state => state.supabaseUrl), serverKey = useConfigStore(state => state.supabaseKey);
 
   useEffect(() => {
-    // Restore session on startup
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    const connection = connectAuthSession(supabase, {
+      session: setSession,
+      notice: value => useSessionNoticeStore.getState().setNotice(value),
+    }, {
+      isActive: () => AppState.currentState === 'active',
+      subscribe: callback => {
+        const listener = AppState.addEventListener('change', state => callback(state === 'active'));
+        return () => listener.remove();
+      },
     });
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
+    return connection.dispose;
+  }, [server, serverKey, setSession]);
 
   // Сессия есть, а профиль ещё не пришёл: решать по contractorId и isAdmin
   // рано — они пока равны значениям по умолчанию, и администратор увидел бы

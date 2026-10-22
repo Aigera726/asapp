@@ -29,7 +29,7 @@ if (isNativeAvailable) {
     schema,
     migrations,
     useWebWorker: false,
-    useIncrementalIndexedDB: false,
+    useIncrementalIndexedDB: true,
     extraLokiOptions,
     onSetUpError: (err: Error) => {
       console.error('[WatermelonDB] LokiJS setup error:', err);

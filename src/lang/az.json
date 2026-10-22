@@ -694,5 +694,14 @@
   "delivery.resetBlocked": "Sıfırlama bloklanıb: cihazda {count} göndərilməmiş dəyişiklik qalıb. Əvvəlcə sinxronlaşdırın.",
   "delivery.storage": "Məlumatları cihazda saxlamaq mümkün olmadı. Boş yaddaşı yoxlayın və yenidən saxlayın. Hesabat hələ saxlanmayıb.",
   "delivery.camera": "Şəkil çəkmək mümkün olmadı. Yenidən cəhd edin.",
-  "delivery.photoTooLarge": "Şəklin ölçüsü 10 MB-dan böyükdür. Daha kiçik şəkil çəkin."
+  "delivery.photoTooLarge": "Şəklin ölçüsü 10 MB-dan böyükdür. Daha kiçik şəkil çəkin.",
+  "photo.gallery": "Qalereyadan",
+  "photo.remove": "Şəkli sil",
+  "photo.preparing": "Şəkil hazırlanır…",
+  "photo.galleryError": "Qalereyadan şəkli açmaq mümkün olmadı. Başqa şəkil seçməyə çalışın.",
+  "photo.cameraStarting": "Kamera hazırlanır…",
+  "photo.cameraUnavailable": "Kamera əlçatan deyil. Yenidən açın və ya qalereyadan şəkil seçin.",
+  "photo.secureCamera": "Brauzerdə kamera üçün HTTPS tələb olunur. Qalereyadan şəkil seçə və ya tətbiqi Expo Go-da aça bilərsiniz.",
+  "login.sessionExpired": "Sessiya bitib. Yenidən daxil olun. Göndərilməmiş hesabatlar cihazda saxlanılıb.",
+  "login.restoreFailed": "Girişi bərpa etmək mümkün olmadı. Bağlantını yoxlayın və yenidən daxil olun. Göndərilməmiş hesabatlar cihazda saxlanılıb."
 }

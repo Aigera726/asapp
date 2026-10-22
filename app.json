@@ -21,6 +21,7 @@
           "NSAllowsArbitraryLoads": true
         },
         "NSCameraUsageDescription": "Требуется доступ к камере для фото материалов и выполненных работ.",
+        "NSPhotoLibraryUsageDescription": "Требуется доступ, чтобы выбрать фото выполненных работ из галереи.",
         "NSLocationWhenInUseUsageDescription": "Геолокация используется для подтверждения присутствия на объекте.",
         "NSMicrophoneUsageDescription": "Требуется доступ к микрофону для видеозаписи.",
         "ITSAppUsesNonExemptEncryption": false
@@ -66,6 +67,12 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Используется для подтверждения нахождения на объекте."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Требуется доступ, чтобы выбрать фото выполненных работ из галереи."
         }
       ],
       "@react-native-community/datetimepicker",

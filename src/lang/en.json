@@ -694,5 +694,14 @@
   "delivery.resetBlocked": "Reset blocked: {count} unsent changes remain on this device. Synchronize them first.",
   "delivery.storage": "Could not save data on this device. Check available storage and try saving again. The report has not been saved yet.",
   "delivery.camera": "Could not take a photo. Please try again.",
-  "delivery.photoTooLarge": "The photo exceeds 10 MB. Take a smaller photo."
+  "delivery.photoTooLarge": "The photo exceeds 10 MB. Take a smaller photo.",
+  "photo.gallery": "From gallery",
+  "photo.remove": "Remove photo",
+  "photo.preparing": "Preparing photo…",
+  "photo.galleryError": "Could not open the gallery photo. Try choosing another image.",
+  "photo.cameraStarting": "Starting camera…",
+  "photo.cameraUnavailable": "The camera is unavailable. Try opening it again or choose a photo from your gallery.",
+  "photo.secureCamera": "The browser camera requires HTTPS. You can choose a gallery photo or open the app in Expo Go.",
+  "login.sessionExpired": "Your session has ended. Sign in again. Unsent reports are saved on this device.",
+  "login.restoreFailed": "Could not restore your sign-in. Check your connection and sign in again. Unsent reports are saved on this device."
 }

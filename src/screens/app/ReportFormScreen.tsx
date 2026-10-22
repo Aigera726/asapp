@@ -15,7 +15,7 @@ import { RouteProp, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import ReportPhotoInput from '@/components/ReportPhotoInput';
 import { database } from '@/database';
 import { syncSavedReport } from '@/database/sync';
 import { preserveReportPhoto } from '@/lib/report-photo';
@@ -77,11 +77,7 @@ export default function ReportFormScreen({ route }: Props) {
   const [comment, setComment] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const savingRef = useRef(false);
-  const capturingRef = useRef(false);
-  const [showCamera, setShowCamera] = useState(false);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
 
   // Ресурсы фактической сметы. Нормы грузим один раз, а количества
   // пересчитываем от введённого объёма: правки прораба хранятся отдельно
@@ -167,33 +163,6 @@ export default function ReportFormScreen({ route }: Props) {
       cancelled = true;
     };
   }, []);
-
-  const takePhoto = async () => {
-    if (!permission?.granted) {
-      const result = await requestPermission();
-      if (!result.granted) {
-        reportNotify('report.noCameraTitle', 'report.noCamera');
-        return;
-      }
-    }
-    setShowCamera(true);
-  };
-
-  const capturePhoto = async () => {
-    try {
-      if (!cameraRef.current || capturingRef.current) return;
-      capturingRef.current = true;
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
-      if (photo) {
-        setPhotoUri(photo.uri);
-        setShowCamera(false);
-      }
-    } catch {
-      reportNotify('common.error', 'delivery.camera');
-    } finally {
-      capturingRef.current = false;
-    }
-  };
 
   const handleSubmit = async () => {
     if (savingRef.current) return;
@@ -302,23 +271,6 @@ export default function ReportFormScreen({ route }: Props) {
       setIsSaving(false);
     }
   };
-
-  if (showCamera) {
-    return (
-      <View style={styles.cameraContainer}>
-        <CameraView ref={cameraRef} style={styles.camera} facing="back">
-          <View style={styles.cameraControls}>
-            <TouchableOpacity id="cancel-camera-btn" style={styles.cameraCancel} onPress={() => setShowCamera(false)}>
-              <Text style={styles.cameraCancelText}>{t('common.cancel')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity id="capture-btn" accessibilityRole="button" accessibilityLabel={t('report.capture')} style={styles.captureBtn} onPress={capturePhoto}>
-              <View style={styles.captureInner} />
-            </TouchableOpacity>
-          </View>
-        </CameraView>
-      </View>
-    );
-  }
 
   const summary = volume?.summary ?? null;
   const exhausted = summary != null && summary.limit <= 0;
@@ -511,21 +463,7 @@ export default function ReportFormScreen({ route }: Props) {
               {/* Photo */}
               <View style={styles.section}>
                 <Text style={styles.label}>{t('report.photo')}</Text>
-                {photoUri ? (
-                  <View style={styles.photoPreview}>
-                    <Icon name="check-circle-outline" size={20} color={S.success} />
-                    <Text style={styles.photoCheck}>{t('report.photoAttached')}</Text>
-                    <TouchableOpacity id="retake-btn" onPress={takePhoto}>
-                      <Text style={styles.retakeText}>{t('report.retake')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity id="camera-btn" style={styles.cameraBtn} onPress={takePhoto} activeOpacity={0.8}>
-                    <View style={styles.cameraIcon}><Icon name="camera-outline" size={22} color={E.blue} /></View>
-                    <Text style={styles.cameraBtnText}>{t('report.takePhoto')}</Text>
-                    <Text style={styles.cameraBtnSub}>{t('report.photoHint')}</Text>
-                  </TouchableOpacity>
-                )}
+                <ReportPhotoInput value={photoUri} onChange={setPhotoUri} disabled={isSaving} />
               </View>
 
               <View style={styles.geoInfo}>
@@ -676,13 +614,6 @@ const styles = StyleSheet.create({
 
   commentInput: { backgroundColor: E.surface, borderWidth: 1, borderColor: E.line, borderRadius: 10, padding: 14, fontSize: 14, color: E.ink, minHeight: 90, textAlignVertical: 'top' },
 
-  cameraBtn: { backgroundColor: E.surface, borderRadius: 12, borderWidth: 1, borderColor: S.lineStrong, borderStyle: 'dashed', padding: 20, alignItems: 'center' },
-  cameraIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: E.soft, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  cameraBtnText: { fontSize: 14, fontWeight: '600', color: E.ink, marginBottom: 3 },
-  cameraBtnSub: { fontSize: 11, color: E.muted },
-  photoPreview: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: S.successSoft, borderRadius: 12, padding: 14 },
-  photoCheck: { flex: 1, color: S.success, fontSize: 14, fontWeight: '600' },
-  retakeText: { color: E.blue, fontSize: 13, fontWeight: '600' },
 
   geoInfo: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 18 },
   geoText: { flex: 1, fontSize: 11, color: E.muted, lineHeight: 16 },
@@ -701,11 +632,4 @@ const styles = StyleSheet.create({
   pillDot: { width: 6, height: 6, borderRadius: 3 },
   pillText: { fontSize: 11, fontWeight: '600' },
 
-  cameraContainer: { flex: 1, backgroundColor: T.colors.black },
-  camera: { flex: 1 },
-  cameraControls: { position: 'absolute', bottom: 50, left: 0, right: 0, alignItems: 'center' },
-  cameraCancel: { position: 'absolute', left: 30, bottom: 0, padding: 12 },
-  cameraCancelText: { color: '#FFFFFF', fontSize: 16 },
-  captureBtn: { width: 72, height: 72, borderRadius: 36, borderWidth: 4, borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
-  captureInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#FFFFFF' },
 });
