@@ -444,7 +444,7 @@ export default function ReportFormScreen({ route }: Props) {
                     <Text style={[styles.label, { marginBottom: 0 }]}>{t('report.resourcesByNorm')}</Text>
                     <View style={styles.modeSwitch} accessibilityRole="radiogroup">
                       {[false, true].map((norm) => (
-                        <TouchableOpacity key={String(norm)} accessibilityRole="radio" accessibilityState={{ selected: byNorm === norm }}
+                        <TouchableOpacity key={String(norm)} accessibilityRole="radio" accessibilityLabel={t(norm ? 'report.byNorm' : 'report.byQuantity')} accessibilityState={{ selected: byNorm === norm }}
                           style={[styles.modeOption, byNorm === norm && styles.modeOptionOn]} onPress={() => setByNorm(norm)}>
                           <Text style={[styles.modeText, byNorm === norm && styles.modeTextOn]}>{t(norm ? 'report.byNorm' : 'report.byQuantity')}</Text>
                         </TouchableOpacity>
