@@ -5,6 +5,8 @@ import EstimateWork from '@/database/models/EstimateWork';
 import EstimateResource from '@/database/models/EstimateResource';
 
 export type EstimateReportPlan = {
+  /** Строка работы фактической сметы — по ней читается остаток материалов. */
+  workId: string;
   workQuantity: number;
   assignedQuantity: number | null;
   resources: {
@@ -30,6 +32,7 @@ export async function loadEstimateReportPlan(id: string): Promise<EstimateReport
     throw new Error('Обновите данные на главном экране, чтобы загрузить количества фактической сметы.');
   }
   return {
+    workId: work.id,
     workQuantity: work.totalQuantity,
     assignedQuantity: assignment.assignedQuantity,
     resources: resources.filter((r) => r.inActualEstimate).map((r) => ({

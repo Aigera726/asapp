@@ -32,6 +32,7 @@ import { Icon } from '@/components/Icon';
 import { formatQty } from '@/lib/domain';
 import { notify } from '@/lib/alert';
 import { loadEstimateReportPlan, EstimateReportPlan } from '@/lib/estimateReport';
+import { loadMaterialUsage, materialRemaining, MaterialUsage } from '@/lib/materialUsage';
 import { loadWorkVolume, loadLiveWorkVolume, WorkVolume, VolumeHistoryEntry } from '@/lib/workVolume';
 import { syncDatabase } from '@/database/sync';
 import { useTranslation, useLanguageStore } from '@/i18n';
@@ -86,6 +87,11 @@ export default function ReportFormScreen({ route }: Props) {
   const [planError, setPlanError] = useState<string | null>(null);
   const [plan, setPlan] = useState<EstimateReportPlan | null>(null);
   const [editedQty, setEditedQty] = useState<Record<string, string>>({});
+  // Прораб вводит либо фактическое количество, либо фактическую норму (тогда количество = норма × объём).
+  const [byNorm, setByNorm] = useState(false);
+  const [editedNorm, setEditedNorm] = useState<Record<string, string>>({});
+  // Остаток материалов по смете с сервера; null — нет связи или представление не создано.
+  const [usage, setUsage] = useState<MaterialUsage | null>(null);
   const [volume, setVolume] = useState<WorkVolume | null>(null);
   // Когда объём последний раз сверен с сервером; null — показан снимок устройства.
   const [liveAt, setLiveAt] = useState<Date | null>(null);
@@ -109,9 +115,11 @@ export default function ReportFormScreen({ route }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    setUsage(null);
     loadEstimateReportPlan(assignmentId)
       .then((p) => {
         if (!cancelled) setPlan(p);
+        if (!isDemoMode) loadMaterialUsage(p.workId).then((u) => { if (!cancelled && u) setUsage(u); });
       })
       .catch((e) => { if (!cancelled) setPlanError(e.message); });
     // Сначала мгновенно — снимок устройства, затем сверка с сервером.
@@ -129,20 +137,35 @@ export default function ReportFormScreen({ route }: Props) {
   const workQty = parseFloat(quantity.replace(',', '.'));
   const hasWorkQty = !Number.isNaN(workQty) && workQty > 0;
 
-  /** Строки списания на текущий объём: план по норме и фактическое количество. */
-  const writeOffLines = (plan?.resources ?? []).map((r) => {
-    const planned = Math.round((r.norm ?? 0) * (hasWorkQty ? workQty : 0) * 1000) / 1000;
-    const edited = editedQty[r.resourceId];
-    const actual =
-      edited === undefined ? planned : parseFloat(edited.replace(',', '.'));
+  // Только материалы. С сервера — точный список (в т. ч. грузинские материалы, которые в
+  // справочнике мобилки без вида); без него скрываем труд и технику.
+  const isMaterial = (r: EstimateReportPlan['resources'][number]) =>
+    usage ? usage.has(r.resourceId) : r.kind !== 'LABOR' && r.kind !== 'MACHINE';
+  const parseNum = (v: string) => parseFloat(v.replace(',', '.'));
+
+  /** Строки материалов на текущий объём: план по норме, факт (количеством или нормой), остаток по смете. */
+  const writeOffLines = (plan?.resources ?? []).filter(isMaterial).map((r) => {
+    const qtyFactor = hasWorkQty ? workQty : 0;
+    const planned = Math.round((r.norm ?? 0) * qtyFactor * 1000) / 1000;
+    const normInput = editedNorm[r.resourceId], qtyInput = editedQty[r.resourceId];
+    const norm = byNorm && normInput !== undefined ? parseNum(normInput) : r.norm ?? 0;
+    const actual = byNorm
+      ? Math.round(norm * qtyFactor * 1000) / 1000
+      : qtyInput === undefined ? planned : parseNum(qtyInput);
+    const remaining = materialRemaining(usage, r.resourceId, r.quantity);
     return {
       resource: r,
       displayName: localizedValue(texts.resources[r.resourceId]?.names, language, isDemoMode ? demoName(r.name, language) : r.name),
       displayUnit: unitLabel(localizedValue(texts.resources[r.resourceId]?.units, language, r.unit), language),
       planned,
       actual: Number.isNaN(actual) ? 0 : actual,
-      input: edited ?? (hasWorkQty ? formatQty(planned) : ''),
-      shortage: r.quantity != null && !Number.isNaN(actual) && actual > r.quantity,
+      /** Норма, которая получилась из введённого факта. */
+      actualNorm: hasWorkQty && !Number.isNaN(actual) ? actual / workQty : null,
+      input: byNorm
+        ? normInput ?? formatQty(r.norm ?? 0)
+        : qtyInput ?? (hasWorkQty ? formatQty(planned) : ''),
+      remaining,
+      overLimit: remaining != null && !Number.isNaN(actual) && actual > remaining + 1e-9,
     };
   });
 
@@ -201,6 +224,20 @@ export default function ReportFormScreen({ route }: Props) {
       reportNotify('common.error', 'report.invalidResource', { name: badLine.displayName });
       return;
     }
+    // Материалы — не больше остатка по смете (с учётом подтверждённых отчётов и отчётов на подтверждении).
+    // Остаток сверяется с сервером на момент отправки; без связи — по последнему известному.
+    const liveUsage = plan && !isDemoMode ? await loadMaterialUsage(plan.workId) : null;
+    if (liveUsage) setUsage(liveUsage);
+    const overLine = writeOffLines.map((l) => ({ ...l, remaining: materialRemaining(liveUsage ?? usage, l.resource.resourceId, l.resource.quantity) }))
+      .find((l) => l.remaining != null && l.actual > l.remaining + 1e-9);
+    if (overLine) {
+      const selectedLanguage = useLanguageStore.getState().language;
+      notify(translate(selectedLanguage, 'report.materialLimitTitle'), translate(selectedLanguage, 'report.materialLimitMessage', {
+        name: overLine.displayName, quantity: displayQty(overLine.actual, selectedLanguage),
+        remaining: displayQty(overLine.remaining!, selectedLanguage), unit: overLine.displayUnit,
+      }));
+      return;
+    }
 
       // Запрашиваем геолокацию (anti-fraud)
       let geoLat: number | null = null;
@@ -239,7 +276,7 @@ export default function ReportFormScreen({ route }: Props) {
             resource_id: line.resource.resourceId, name: line.resource.name,
             unit: line.resource.unit, kind: line.resource.kind, norm: line.resource.norm,
             estimate_quantity: line.resource.quantity, calculated_quantity: line.planned,
-            reported_quantity: line.actual,
+            reported_quantity: line.actual, reported_norm: line.actualNorm, entered_as: byNorm ? 'norm' : 'quantity',
           })));
           record.geoLat = geoLat;
           record.geoLon = geoLon;
@@ -403,7 +440,17 @@ export default function ReportFormScreen({ route }: Props) {
               {/* Ресурсы фактической сметы */}
               {writeOffLines.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.label}>{t('report.resourcesByNorm')}</Text>
+                  <View style={styles.sectionRow}>
+                    <Text style={[styles.label, { marginBottom: 0 }]}>{t('report.resourcesByNorm')}</Text>
+                    <View style={styles.modeSwitch} accessibilityRole="radiogroup">
+                      {[false, true].map((norm) => (
+                        <TouchableOpacity key={String(norm)} accessibilityRole="radio" accessibilityState={{ selected: byNorm === norm }}
+                          style={[styles.modeOption, byNorm === norm && styles.modeOptionOn]} onPress={() => setByNorm(norm)}>
+                          <Text style={[styles.modeText, byNorm === norm && styles.modeTextOn]}>{t(norm ? 'report.byNorm' : 'report.byQuantity')}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
                   {!hasWorkQty ? (
                     <View style={styles.emptyNote}>
                       <Icon name="calculator-variant-outline" size={18} color={E.muted} />
@@ -418,19 +465,24 @@ export default function ReportFormScreen({ route }: Props) {
                             <Text style={styles.writeOffNorm}>
                               {line.resource.norm == null ? t('report.noNorm') : `${fmtQty(line.resource.norm)} × ${fmtQty(workQty)} = ${fmtQty(line.planned)}`} {line.displayUnit}
                             </Text>
-                            <Text style={[styles.writeOffNorm, line.shortage && styles.writeOffWarn]}>
-                              {t('report.totalEstimateResource', { quantity: line.resource.quantity == null ? '—' : fmtQty(line.resource.quantity), unit: line.displayUnit })}
-                              {line.shortage ? ' · ' + t('report.aboveEstimate') : ''}
+                            {byNorm ? (
+                              <Text style={styles.writeOffNorm}>{t('report.actualResult', { quantity: fmtQty(line.actual), unit: line.displayUnit })}</Text>
+                            ) : line.actualNorm != null && Math.abs(line.actual - line.planned) > 1e-9 ? (
+                              <Text style={styles.writeOffNorm}>{t('report.actualNormResult', { norm: fmtQty(line.actualNorm) })}</Text>
+                            ) : null}
+                            <Text style={[styles.writeOffNorm, line.overLimit && styles.writeOffWarn]}>
+                              {t('report.remainingEstimate', { quantity: line.remaining == null ? '—' : fmtQty(line.remaining), unit: line.displayUnit })}
+                              {line.overLimit ? ' · ' + t('report.aboveRemaining') : ''}
                             </Text>
                           </View>
                           <View style={styles.writeOffActual}>
-                          <Text style={[styles.writeOffNorm, { textAlign: 'right' }]}>{t('report.actualResourceQuantity')}</Text>
+                          <Text style={[styles.writeOffNorm, { textAlign: 'right' }]}>{t(byNorm ? 'report.actualNorm' : 'report.actualResourceQuantity')}</Text>
                           <TextInput
                             accessibilityLabel={t('report.usageLabel', { name: line.displayName })}
-                            style={[styles.writeOffInput, line.shortage && styles.writeOffInputWarn]}
+                            style={[styles.writeOffInput, line.overLimit && styles.writeOffInputWarn]}
                             value={line.input}
                             onChangeText={(v) =>
-                              setEditedQty((prev) => ({ ...prev, [line.resource.resourceId]: v }))
+                              (byNorm ? setEditedNorm : setEditedQty)((prev) => ({ ...prev, [line.resource.resourceId]: v }))
                             }
                             keyboardType="decimal-pad"
                             returnKeyType="done"
@@ -618,6 +670,11 @@ const styles = StyleSheet.create({
   writeOffWarn: { color: S.danger, fontWeight: '600' },
   writeOffInput: { width: 92, backgroundColor: E.paper, borderWidth: 1, borderColor: E.line, borderRadius: 9, paddingVertical: 10, paddingHorizontal: 8, fontSize: 15, fontWeight: '600', color: E.ink, textAlign: 'center' },
   writeOffInputWarn: { borderColor: S.danger },
+  modeSwitch: { flexDirection: 'row', backgroundColor: S.surface2, borderRadius: 8, padding: 2 },
+  modeOption: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
+  modeOptionOn: { backgroundColor: E.surface },
+  modeText: { fontSize: 12, color: E.muted },
+  modeTextOn: { color: E.ink, fontWeight: '600' },
 
   commentInput: { backgroundColor: E.surface, borderWidth: 1, borderColor: E.line, borderRadius: 10, padding: 14, fontSize: 14, color: E.ink, minHeight: 90, textAlignVertical: 'top' },
 
