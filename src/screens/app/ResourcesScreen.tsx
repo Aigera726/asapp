@@ -157,7 +157,7 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
                   tone={negative > 0 ? T.colors.danger : undefined}
                 />
               </View>
-            ) : null
+            ) : undefined
           }
           renderItem={({ item }) => (
             <ListRow
@@ -235,7 +235,7 @@ function ResourcesScreen({ assets, movements, projects, objects, resources, work
                 tone={inRepair > 0 ? T.colors.warning : undefined}
               />
             </View>
-          ) : null
+          ) : undefined
         }
         renderItem={({ item }) => (
           <ListRow

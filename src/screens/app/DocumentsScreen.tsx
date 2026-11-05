@@ -247,7 +247,7 @@ function DocumentsScreen({ documents }: { documents: DocumentModel[] }) {
         visible={showSignModal}
         transparent
         animationType="slide"
-        onRequestClose={() => !isSigning && setShowSignModal(false)}
+        onRequestClose={() => { if (!isSigning) setShowSignModal(false); }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>

@@ -106,7 +106,7 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
                   tone={T.colors.success}
                 />
               </View>
-            ) : null
+            ) : undefined
           }
           renderItem={({ item }) => {
             const late = isOverdue(item.dueAt, item.status);
@@ -177,7 +177,7 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
                   tone={failed > 0 ? T.colors.danger : undefined}
                 />
               </View>
-            ) : null
+            ) : undefined
           }
           renderItem={({ item }) => (
             <ListRow
@@ -239,7 +239,7 @@ function ControlScreen({ inspections, prescriptions, deviations }: Props) {
                 label={t("history.rejected")}
               />
             </View>
-          ) : null
+          ) : undefined
         }
         renderItem={({ item }) => (
           <ListRow
