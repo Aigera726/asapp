@@ -1,5 +1,6 @@
 import { Model } from '@nozbe/watermelondb';
 import { field, date, readonly } from '@nozbe/watermelondb/decorators';
+import type { LocalizedText } from '@/lib/assignment-texts';
 
 export type AddendumStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
 /** Изменение объёма работы в ДС: было → стало; added — новая работа договора. */
@@ -11,6 +12,9 @@ export type AddendumChange = {
   added: boolean;
   old_quantity: number;
   new_quantity: number;
+  /** Названия и единицы работы на ru/en/ka/az из справочника (миграция 17). */
+  names?: LocalizedText;
+  units?: LocalizedText;
 };
 
 /**

@@ -30,9 +30,10 @@ const plain = v => JSON.parse(JSON.stringify(v));
 
 const now = Date.parse('2026-11-10T12:00:00Z');
 const ago = days => new Date(now - days * 86400000);
-const change = (o = {}) => ({ assignment_id: 'a1', work_name: 'Кладка', unit: 'м²', change: 'INCREASE', added: false, old_quantity: 34, new_quantity: 40, ...o });
+const change = (o = {}) => ({ assignment_id: 'a1', work_name: 'Кладка', unit: 'м²', change: 'INCREASE', added: false, old_quantity: 34, new_quantity: 40,
+  names: { ru: 'Кладка', en: 'Masonry' }, units: { en: 'm²' }, ...o });
 const addendum = (o = {}) => ({ id: 'd1', status: 'APPROVED', number: 3, contractNumber: '145', projectName: 'Тестовый проект', objectName: 'Блок 1',
-  submittedAt: ago(1), decidedAt: ago(0.5), decisionComment: null, changes: [change(), change({ assignment_id: null, added: true, work_name: 'Бетон', old_quantity: 0, new_quantity: 3 })], ...o });
+  submittedAt: ago(1), decidedAt: ago(0.5), decisionComment: null, changes: [change(), change({ assignment_id: null, added: true, work_name: 'Бетон', names: {}, old_quantity: 0, new_quantity: 3 })], ...o });
 
 test('addenda and decided reports become notices, newest first; a status change is a new notice; older than 30 days is dropped', () => {
   const reports = [
@@ -52,6 +53,10 @@ test('addenda and decided reports become notices, newest first; a status change 
   assert.match(approved, /Кладка: 34 → 40/);
   assert.match(approved, /Новая работа: Бетон — 3/);
   for (const lang of ['en', 'ka', 'az']) for (const n of list) assert.doesNotMatch(noticeTitle(n, lang) + noticeBody(n, lang), /\{|undefined/);
+  // название и единица работы — на языке приложения; без перевода — как в договоре
+  assert.match(noticeBody(list[2], 'en'), /Masonry: 34 → 40 m²/);
+  assert.match(noticeBody(list[0], 'en'), /accepted: Masonry\./);
+  assert.match(noticeBody(list[1], 'en', 'Wall masonry'), /^Wall masonry: 5 of 6/);
 });
 
 test('first run marks old notices seen; the approved window shows each addendum once, oldest first', () => {

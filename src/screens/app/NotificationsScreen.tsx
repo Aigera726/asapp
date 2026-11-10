@@ -4,6 +4,8 @@ import { useNavigation } from '@react-navigation/native';
 import { ScreenHeader, Card, EmptyState } from '@/components/ui';
 import { Icon, type IconName } from '@/components/Icon';
 import { useNoticeStore } from '@/store/noticeStore';
+import { useAssignmentTexts } from '@/hooks/useAssignmentTexts';
+import { localizedValue } from '@/lib/assignment-texts';
 import { useTranslation } from '@/i18n';
 import { noticeTitle, noticeBody } from '@/i18n/notices';
 import { displayDate } from '@/i18n/work';
@@ -25,6 +27,9 @@ export default function NotificationsScreen() {
   // «Новое» подсвечивается у того, что было непрочитанным при открытии экрана.
   const [fresh] = useState(() => new Set(notices.filter(n => !seen.has(n.id)).map(n => n.id)));
   useEffect(() => { markAllSeen(); }, [notices.length, markAllSeen]);
+  // Названия работ в отчётах — на языке приложения (те же переводы, что в списке работ).
+  const { texts } = useAssignmentTexts(notices.flatMap(n => (n.kind === 'report' && n.assignmentId ? [n.assignmentId] : [])));
+  const workName = (n: Notice) => (n.kind === 'report' && n.assignmentId ? localizedValue(texts.works[n.assignmentId]?.names, language, n.workName) : undefined);
 
   return (
     <View style={styles.container}>
@@ -43,7 +48,7 @@ export default function NotificationsScreen() {
                 <View style={[styles.icon, { backgroundColor: color + '1A' }]}><Icon name={icon} size={20} color={color} /></View>
                 <View style={styles.body}>
                   <Text style={styles.title}>{noticeTitle(item, language)}</Text>
-                  <Text style={styles.text}>{noticeBody(item, language)}</Text>
+                  <Text style={styles.text}>{noticeBody(item, language, workName(item))}</Text>
                   <Text style={styles.meta}>{[displayDate(new Date(item.at), language), who].filter(Boolean).join(' · ')}
                     {fresh.has(item.id) ? <Text style={styles.newMark}>  {t('notice.new')}</Text> : null}</Text>
                 </View>

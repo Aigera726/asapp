@@ -2,13 +2,16 @@ import { translate, type Language } from './messages';
 import { displayQty, unitLabel } from './work';
 import { blockedWorks, type Notice } from '@/lib/notices';
 import type { AddendumChange } from '@/database/models/ContractAddendum';
+import { localizedValue } from '@/lib/assignment-texts';
 
 /** «Новая работа: … — 10 м²», «Работа: 34 → 40 м²», «Работа: снята (было 7 т)». */
 export function changeLine(c: AddendumChange, language: Language): string {
-  const unit = unitLabel(c.unit, language), q = (v: number) => displayQty(Number(v || 0), language);
-  if (c.added) return translate(language, 'notice.changeAdded', { work: c.work_name, qty: q(c.new_quantity), unit });
-  if (c.change === 'STORNO_FULL') return translate(language, 'notice.changeRemoved', { work: c.work_name, old: q(c.old_quantity), unit });
-  return translate(language, 'notice.changeQty', { work: c.work_name, old: q(c.old_quantity), new: q(c.new_quantity), unit });
+  // Название и единица — на языке приложения из справочника; без перевода — как в договоре.
+  const work = localizedValue(c.names, language, c.work_name);
+  const unit = localizedValue(c.units, language, unitLabel(c.unit, language)), q = (v: number) => displayQty(Number(v || 0), language);
+  if (c.added) return translate(language, 'notice.changeAdded', { work, qty: q(c.new_quantity), unit });
+  if (c.change === 'STORNO_FULL') return translate(language, 'notice.changeRemoved', { work, old: q(c.old_quantity), unit });
+  return translate(language, 'notice.changeQty', { work, old: q(c.old_quantity), new: q(c.new_quantity), unit });
 }
 
 export function noticeTitle(n: Notice, language: Language): string {
@@ -17,17 +20,19 @@ export function noticeTitle(n: Notice, language: Language): string {
   return translate(language, key, { n: String(n.number), contract: n.contractNumber || '—' });
 }
 
-export function noticeBody(n: Notice, language: Language): string {
+/** workName — название работы отчёта на языке приложения (переводы назначений), иначе из сметы. */
+export function noticeBody(n: Notice, language: Language, workName?: string): string {
   if (n.kind === 'report') {
+    const work = workName || n.workName;
     const unit = unitLabel(n.unit, language), q = (v: number | null) => displayQty(Number(v || 0), language);
     return n.status === 'approved'
-      ? translate(language, 'notice.reportApprovedBody', { work: n.workName, confirmed: q(n.confirmed), reported: q(n.reported), unit })
-      : translate(language, 'notice.reportRejectedBody', { work: n.workName, reported: q(n.reported), unit, reason: n.reason || '—' });
+      ? translate(language, 'notice.reportApprovedBody', { work, confirmed: q(n.confirmed), reported: q(n.reported), unit })
+      : translate(language, 'notice.reportRejectedBody', { work, reported: q(n.reported), unit, reason: n.reason || '—' });
   }
   const place = [n.projectName, n.objectName].filter(Boolean).join(' · ');
   let text = '';
   if (n.status === 'PENDING_APPROVAL') {
-    const works = blockedWorks(n);
+    const works = blockedWorks(n, language);
     text = works.length ? translate(language, 'notice.pendingBlocked', { works: works.join(', ') }) : translate(language, 'notice.pendingFree');
   } else if (n.status === 'REJECTED') {
     text = n.reason ? translate(language, 'notice.rejectedBody', { reason: n.reason }) : translate(language, 'notice.rejectedNoReason');

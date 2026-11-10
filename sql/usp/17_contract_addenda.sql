@@ -29,7 +29,20 @@ select
         'change', l.volume_change,
         'added', l.assignment_id is null,
         'old_quantity', l.old_quantity,
-        'new_quantity', l.new_quantity)
+        'new_quantity', l.new_quantity,
+        -- Названия и единицы работы на ru/en/ka/az (как mobile.v_assignment_localizations).
+        'names', coalesce((select jsonb_object_agg(x.locale, x.name) from (
+            select distinct on (loc.locale) loc.locale, loc.name from erp.localization loc
+            where loc.object_id = w.work_id and loc.object_name in ('jobs', 'jobs_cas')
+              and loc.locale in ('ru','en','ka','az') and nullif(btrim(loc.name), '') is not null
+            order by loc.locale, loc.id desc) x), '{}'::jsonb),
+        'units', coalesce((select jsonb_object_agg(x.locale, x.name) from (
+            select distinct on (loc.locale) loc.locale, loc.name from erp.localization loc
+            where loc.object_id = coalesce((select measure_id from erp.jobs where id = w.work_id),
+                                           (select measure_id from erp.jobs_cas where id = w.work_id))
+              and loc.object_name = 'dic_measures'
+              and loc.locale in ('ru','en','ka','az') and nullif(btrim(loc.name), '') is not null
+            order by loc.locale, loc.id desc) x), '{}'::jsonb))
       order by l.assignment_id is null, coalesce(nullif(ca.work_name, ''), lw.name))
     from erp.contract_addendum_lines l
     left join erp.contract_assignments ca on ca.id = l.assignment_id

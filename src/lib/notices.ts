@@ -4,6 +4,7 @@
  * id включает статус: смена статуса ДС или отчёта даёт новое (непрочитанное) уведомление.
  */
 import type { AddendumChange, AddendumStatus } from '@/database/models/ContractAddendum';
+import { localizedValue } from './assignment-texts';
 
 export const NOTICE_DAYS = 30;
 const DAY = 86400000;
@@ -14,14 +15,14 @@ export type AddendumNotice = {
   reason: string | null; changes: AddendumChange[];
 };
 export type ReportNotice = {
-  kind: 'report'; id: string; at: number; status: 'approved' | 'rejected'; workName: string; unit: string | null;
+  kind: 'report'; id: string; at: number; status: 'approved' | 'rejected'; assignmentId: string | null; workName: string; unit: string | null;
   reported: number; confirmed: number | null; decidedBy: string | null; reason: string | null;
 };
 export type Notice = AddendumNotice | ReportNotice;
 
 type AddendumRow = { id: string; status: AddendumStatus; number: number; contractNumber: string | null; projectName: string | null;
   objectName: string | null; submittedAt: Date | null; decidedAt: Date | null; decisionComment: string | null; changes: AddendumChange[] };
-type ReportRow = { id: string; status: string; estimateWorkId: string | null; unit: string | null; reportedVolume: number;
+type ReportRow = { id: string; status: string; assignmentId: string | null; estimateWorkId: string | null; unit: string | null; reportedVolume: number;
   confirmedVolume: number | null; decidedAt: Date | null; decidedByName: string | null; rejectionReason: string | null };
 
 const time = (d: Date | null) => (d && !Number.isNaN(d.getTime()) ? d.getTime() : 0);
@@ -40,7 +41,7 @@ export function buildNotices(addenda: AddendumRow[], reports: ReportRow[], workN
     if (r.status !== 'approved' && r.status !== 'rejected') continue;
     const at = time(r.decidedAt);
     if (at < from) continue;
-    list.push({ kind: 'report', id: `rep:${r.id}:${r.status}`, at, status: r.status,
+    list.push({ kind: 'report', id: `rep:${r.id}:${r.status}`, at, status: r.status, assignmentId: r.assignmentId,
       workName: (r.estimateWorkId && workNames.get(r.estimateWorkId)) || '—', unit: r.unit,
       reported: r.reportedVolume, confirmed: r.confirmedVolume, decidedBy: r.decidedByName, reason: r.rejectionReason });
   }
@@ -48,7 +49,8 @@ export function buildNotices(addenda: AddendumRow[], reports: ReportRow[], workN
 }
 
 /** Работы ДС, по которым объём не принимается, пока ДС на согласовании (новые работы ещё не в договоре). */
-export const blockedWorks = (n: AddendumNotice) => n.changes.filter(c => !c.added).map(c => c.work_name);
+export const blockedWorks = (n: AddendumNotice, language: 'ru' | 'en' | 'ka' | 'az' = 'ru') =>
+  n.changes.filter(c => !c.added).map(c => localizedValue(c.names, language, c.work_name));
 
 /**
  * Первая загрузка (отметок ещё нет): старше FIRST_RUN_DAYS считаем прочитанным,
