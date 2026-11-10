@@ -103,7 +103,7 @@ const ProcurementListScreen = ({ requests, orders }: Props) => {
   const currentData = activeTab === 'requests' ? requests : orders;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <ScreenHeader title={t("home.procurement")} subtitle={t("ui.requests_and_orders")} onBack={() => navigation.goBack()} right={
         <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('CreateRequest', { projectId: '' })}>
           <Text style={styles.addBtnText}>{currentText("ui.create")}</Text>

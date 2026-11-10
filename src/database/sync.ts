@@ -448,6 +448,8 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
       const client = supabase.schema(MOBILE_SCHEMA);
       const rejected: Record<string, string[]> = {};
       const reject = (table: string, id: string, code: DeliveryIssue['code'], detail?: string) => {
+        // ERP не принимает объём, пока по работе идёт доп. соглашение на согласовании: своя понятная причина.
+        if (code === 'write' && /доп\. соглашени/i.test(detail || '')) code = 'addendum';
         (rejected[table] ||= []).push(id); issues.push({ table, id, code, detail });
       };
       for (const table of PUSH_ORDER) {

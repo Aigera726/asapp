@@ -54,7 +54,7 @@ const AcceptanceListScreen = ({ orders }: Props) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <ScreenHeader title={t("ui.delivery_acceptance")} subtitle={t("ui.incoming_delivery_inspection")} onBack={() => navigation.goBack()} />
 
       <FlatList

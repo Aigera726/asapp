@@ -1,5 +1,5 @@
 /** Acknowledgements belong to the exact business data sent, never the whole local queue. */
-export type DeliveryIssue = { table: string; id: string; code: 'assignment' | 'photo' | 'write'; detail?: string };
+export type DeliveryIssue = { table: string; id: string; code: 'assignment' | 'photo' | 'write' | 'addendum'; detail?: string };
 export type DeliveryReceipt = { table: string; id: string; fingerprint: string };
 const LOCAL_FIELDS = new Set(['_status', '_changed', 'sync_status', 'updated_at']);
 export function deliveryFingerprint(raw: Record<string, any>): string {

@@ -2,7 +2,8 @@ import { useTranslation } from '@/i18n';
 
 import { ScreenHeader } from '@/components/ui';
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { supabase } from '@/lib/supabase';
 import { useNavigation } from '@react-navigation/native';
@@ -80,7 +81,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <ScreenHeader title={t("ui.profile")} subtitle={t("ui.account_and_settings")} onBack={() => navigation.goBack()} right={
         <TouchableOpacity accessibilityLabel={t("login.connection")} onPress={() => navigation.navigate('ConnectionSetup')}>
           <Icon name="cog-outline" size={22} color={T.colors.primary} />

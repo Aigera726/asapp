@@ -9,7 +9,6 @@ import {
   ScrollView,
   TextInput,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList, TabParamList } from '@/navigation';
@@ -27,7 +26,7 @@ import Contractor from '@/database/models/Contractor';
 import { T } from '@/theme';
 import { ECO as E, ECO_STATUS as S } from '@/theme/ecopro';
 import { Icon } from '@/components/Icon';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, ScreenHeader } from '@/components/ui';
 import { syncDatabase } from '@/database/sync';
 import { useAuthStore } from '@/store/authStore';
 import { VolumeBar } from '@/components/VolumeBar';
@@ -38,7 +37,6 @@ import type { TranslationKey } from '@/i18n/messages';
 import { displayQty, unitLabel, demoName } from '@/i18n/work';
 import { useAssignmentTexts } from '@/hooks/useAssignmentTexts';
 import { localizedValue } from '@/lib/assignment-texts';
-import LanguageSelector from '@/components/LanguageSelector';
 
 type TasksScreenRouteProp = RouteProp<TabParamList, 'Tasks'>;
 
@@ -76,7 +74,6 @@ function TasksScreen({ route }: Props) {
   const [assignments, setAssignments] = useState<WorkAssignmentWithName[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const insets = useSafeAreaInsets();
   const { isDemoMode } = useAuthStore();
   const { texts, unavailable: translationsUnavailable } = useAssignmentTexts(assignments.map(item => item.id));
   const assignmentText = (item: WorkAssignmentWithName) => item.wbs_item_id ? undefined
@@ -450,15 +447,6 @@ function TasksScreen({ route }: Props) {
 
   const header = (
     <>
-      <View style={styles.intro}>
-        <View style={styles.languageRow}><Text style={styles.kicker}>{t('home.heroTag')}</Text><LanguageSelector /></View>
-        <View style={styles.titleRow}>
-          <Text accessibilityRole="header" style={styles.pageTitle}>{t('work.title')}</Text>
-          <Text style={styles.headerCount}>{visible.length}</Text>
-        </View>
-        <Text style={styles.pageSubtitle}>{t('work.subtitle')}</Text>
-      </View>
-
       <View style={styles.search}>
         <Icon name="magnify" size={20} color={E.muted} />
         <TextInput
@@ -488,7 +476,9 @@ function TasksScreen({ route }: Props) {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
+      {/* Шапка как у остальных вкладок (белая, с языком); счётчик работ — справа. */}
+      <ScreenHeader title={t('work.title')} subtitle={t('work.subtitle')} large right={<Text style={styles.headerCount}>{visible.length}</Text>} />
       {loading ? (
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={E.blue} />

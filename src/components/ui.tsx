@@ -50,7 +50,8 @@ export function ScreenHeader({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.header, { paddingTop: onBack ? T.spacing.md : insets.top + T.spacing.md }]}>
+    // Отступ под строку состояния — всегда: экраны стека без системной шапки иначе уходят под часы.
+    <View style={[styles.header, { paddingTop: insets.top + T.spacing.md }]}>
       {onBack ? (
         <TouchableOpacity
           accessibilityRole="button"
