@@ -3,6 +3,30 @@ import { schemaMigrations, createTable, addColumns } from '@nozbe/watermelondb/S
 export const migrations = schemaMigrations({
   migrations: [
     {
+      // Доп. соглашения к договорам: уведомления и окно «ДС согласовано».
+      toVersion: 14,
+      steps: [
+        createTable({
+          name: 'contract_addenda',
+          columns: [
+            { name: 'contract_id', type: 'string', isIndexed: true },
+            { name: 'contract_number', type: 'string', isOptional: true },
+            { name: 'project_name', type: 'string', isOptional: true },
+            { name: 'object_name', type: 'string', isOptional: true },
+            { name: 'number', type: 'number' },
+        // PENDING_APPROVAL | APPROVED | REJECTED
+            { name: 'status', type: 'string' },
+            { name: 'addendum_date', type: 'string', isOptional: true },
+            { name: 'submitted_at', type: 'number', isOptional: true },
+            { name: 'decided_at', type: 'number', isOptional: true },
+            { name: 'decision_comment', type: 'string', isOptional: true },
+            { name: 'changes', type: 'string', isOptional: true },
+            { name: 'updated_at', type: 'number' },
+          ],
+        }),
+      ],
+    },
+    {
       // Остаток объёма работы: сводка ERP по заданию и история отправок.
       toVersion: 13,
       steps: [

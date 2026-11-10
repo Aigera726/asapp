@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation, useLanguageStore } from '@/i18n';
 import { translate, type TranslationKey } from '@/i18n/messages';
 import LanguageSelector from '@/components/LanguageSelector';
+import { NoticeBell } from '@/components/NoticeBell';
 import { notify } from '@/lib/alert';
 
 const enhance = withObservables([], () => ({
@@ -247,6 +248,7 @@ function DashboardScreen({
             <View style={styles.brandRow}><View style={styles.brandMark}><Icon name="cube-outline" size={21} color="#FFFFFF" /></View><Text style={styles.brandText}>AS<Text style={{ color: E.blue }}> APP</Text></Text></View>
             {roomy && <View style={styles.orgBlock}><Text style={styles.orgLabel}>{t('home.organization')}</Text><Text style={styles.account} numberOfLines={1}>{isDemoMode ? t('home.demo') : contractorName || 'AS Group'}</Text></View>}
           </View>
+          <NoticeBell />
           {roomy && <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.refresh')} disabled={refreshing || isDemoMode} onPress={() => onRefresh()} style={styles.refreshBtn}>{refreshing ? <ActivityIndicator color={E.blue} /> : <Icon name="refresh" size={20} color={isDemoMode ? '#A2AAB7' : E.muted} />}</TouchableOpacity>}
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('home.profile', { name: accountName, role: accountRole })} onPress={() => navigation.navigate('Profile')} style={[styles.profileBtn, !roomy && styles.profileCompact]} activeOpacity={0.75}>
             <View style={styles.avatar}><Text style={styles.initials}>{initials}</Text></View>

@@ -168,6 +168,31 @@ const FAN_OUTS: FanOut[] = [
     }),
   },
   {
+    // Доп. соглашения к договорам организации (миграция 17): уведомления и окно «ДС согласовано».
+    view: 'v_contract_addenda',
+    targets: ['contract_addenda'],
+    optional: true,
+    split: (r) => ({
+      contract_addenda: [
+        {
+          id: r.id,
+          contract_id: r.contract_id,
+          contract_number: r.contract_number ?? null,
+          project_name: r.project_name ?? null,
+          object_name: r.object_name ?? null,
+          number: Number(r.number ?? 0),
+          status: r.status,
+          addendum_date: r.addendum_date ?? null,
+          submitted_at: r.submitted_at ?? null,
+          decided_at: r.decided_at ?? null,
+          decision_comment: r.decision_comment ?? null,
+          changes: JSON.stringify(Array.isArray(r.changes) ? r.changes : []),
+          updated_at: now(),
+        },
+      ],
+    }),
+  },
+  {
     // История отправленных объёмов по работам организации (миграция 16).
     view: 'v_work_reports',
     targets: ['work_reports'],
@@ -429,7 +454,8 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
         // Журнал движений, отчёты и история отправок — полные снимки:
         // пропавшее на сервере убирается и из кеша.
         const reconcile = (SNAPSHOT_TABLES.has(table) && !skipped.includes(table))
-          || (table === 'work_reports' && !skipped.includes('v_work_reports'));
+          || (table === 'work_reports' && !skipped.includes('v_work_reports'))
+          || (table === 'contract_addenda' && !skipped.includes('v_contract_addenda'));
         changes[table] = await mapToChanges(table, dedupeById(list), reconcile);
       }
 

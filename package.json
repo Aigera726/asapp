@@ -9,6 +9,7 @@
     "test:auth-connection": "node scripts/test-auth-connection.cjs",
     "test:durable-queue": "node scripts/test-durable-queue.cjs",
     "test:sync-delivery": "node scripts/test-sync-delivery.cjs",
+    "test:notices": "node scripts/test-notices.cjs",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",

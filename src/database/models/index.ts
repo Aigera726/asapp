@@ -31,6 +31,7 @@ import Inspection from './Inspection';
 import Prescription from './Prescription';
 import Deviation from './Deviation';
 import WorkReport from './WorkReport';
+import ContractAddendum from './ContractAddendum';
 
 export const modelClasses = [
   Project,
@@ -59,4 +60,5 @@ export const modelClasses = [
   Prescription,
   Deviation,
   WorkReport,
+  ContractAddendum,
 ];

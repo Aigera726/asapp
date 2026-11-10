@@ -19,6 +19,7 @@ import { T } from '@/theme';
 import { ECO as E } from '@/theme/ecopro';
 import type { Tone } from '@/lib/domain';
 import LanguageSelector from './LanguageSelector';
+import { NoticeBell } from './NoticeBell';
 
 /**
  * Базовые элементы интерфейса AS-APP.
@@ -73,7 +74,8 @@ export function ScreenHeader({
           </Text>
         ) : null}
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>{right}<LanguageSelector /></View>
+      {/* На корневых экранах вкладок — колокольчик уведомлений. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>{right}{large ? <NoticeBell /> : null}<LanguageSelector /></View>
     </View>
   );
 }

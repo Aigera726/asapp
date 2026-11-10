@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 13,
+  version: 14,
   tables: [
     // ... (existing tables)
     tableSchema({
@@ -445,6 +445,25 @@ export const schema = appSchema({
         { name: 'photo_uri', type: 'string', isOptional: true },
         { name: 'requested_at', type: 'number' },
         { name: 'sync_status', type: 'string', isIndexed: true },
+        { name: 'updated_at', type: 'number' },
+      ],
+    }),
+    // Доп. соглашения к договорам организации — снимок ERP (mobile.v_contract_addenda).
+    tableSchema({
+      name: 'contract_addenda',
+      columns: [
+        { name: 'contract_id', type: 'string', isIndexed: true },
+        { name: 'contract_number', type: 'string', isOptional: true },
+        { name: 'project_name', type: 'string', isOptional: true },
+        { name: 'object_name', type: 'string', isOptional: true },
+        { name: 'number', type: 'number' },
+        // PENDING_APPROVAL | APPROVED | REJECTED
+        { name: 'status', type: 'string' },
+        { name: 'addendum_date', type: 'string', isOptional: true },
+        { name: 'submitted_at', type: 'number', isOptional: true },
+        { name: 'decided_at', type: 'number', isOptional: true },
+        { name: 'decision_comment', type: 'string', isOptional: true },
+        { name: 'changes', type: 'string', isOptional: true },
         { name: 'updated_at', type: 'number' },
       ],
     }),

@@ -31,6 +31,8 @@ import HubScreen from '@/screens/app/HubScreen';
 
 // Экраны внутри стека
 import SyncStatusScreen from '@/screens/app/SyncStatusScreen';
+import NotificationsScreen from '@/screens/app/NotificationsScreen';
+import { NoticeCenter } from '@/components/NoticeCenter';
 import ReportFormScreen from '@/screens/app/ReportFormScreen';
 import DocumentsScreen from '@/screens/app/DocumentsScreen';
 import ProcurementListScreen from '@/screens/app/ProcurementListScreen';
@@ -72,6 +74,7 @@ export type AppStackParamList = {
   DocumentView: { documentId: string };
   ApprovalsTab: undefined;
   SyncStatus: undefined;
+  Notifications: undefined;
   ConnectionSetup: undefined;
   Profile: undefined;
 
@@ -155,6 +158,9 @@ function TabNavigator() {
   const pendingLinkCount = useAuthStore((s) => s.pendingLinkCount);
 
   return (
+    <>
+    {/* Уведомления (ДС, решения по объёмам) и разовое окно «ДС согласовано». */}
+    <NoticeCenter />
     <Tab.Navigator
       screenOptions={{
         tabBarPosition: desktop ? 'left' : 'bottom',
@@ -204,6 +210,7 @@ function TabNavigator() {
         />
       ))}
     </Tab.Navigator>
+    </>
   );
 }
 
@@ -223,6 +230,7 @@ function AppNavigator() {
       <AppStack.Screen name="DocumentView" component={DocumentViewScreen} />
       <AppStack.Screen name="ApprovalsTab" component={ApprovalListScreen} />
       <AppStack.Screen name="SyncStatus" component={SyncStatusScreen} />
+      <AppStack.Screen name="Notifications" component={NotificationsScreen} />
       <AppStack.Screen name="ConnectionSetup" component={ConnectionSetupScreen} />
       <AppStack.Screen name="Profile" component={ProfileScreen} />
 
