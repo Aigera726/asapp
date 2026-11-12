@@ -751,5 +751,18 @@
   "notice.reportRejectedBody": "{work}: {reported} {unit}. Причина: {reason}",
   "notice.modalChanges": "Изменились объёмы работ",
   "notice.modalFooter": "Доступный к отправке объём уже пересчитан по новым объёмам.",
-  "notice.modalOk": "Понятно"
+  "notice.modalOk": "Понятно",
+  "delivery.refusedTitle": "Сервер не принял отчётов: {count}",
+  "delivery.refusedHint": "Эти отчёты остаются на телефоне, но больше не уменьшают доступный объём. Удалите отчёт или внесите его заново с правильными данными.",
+  "delivery.overLimit": "Объём больше, чем осталось по работе. Внесите отчёт заново с меньшим объёмом.",
+  "delivery.refusedWrite": "Сервер не принял отчёт.",
+  "delivery.serverAnswer": "Ответ сервера: {text}",
+  "delivery.delete": "Удалить отчёт",
+  "delivery.redo": "Внести заново",
+  "delivery.deleteConfirm": "Удалить этот отчёт с телефона? Сервер его не принял, восстановить его будет нельзя.",
+  "delivery.deleted": "Отчёт удалён с телефона.",
+  "delivery.unknownWork": "Работа",
+  "report.addendumTitle": "Доп. соглашение",
+  "report.addendumBlocked": "По работе оформляется доп. соглашение № {number} — объём пока не принимается. Внести объём можно после того, как ДС согласуют или отклонят.",
+  "work.addendumPending": "ДС № {number} на согласовании"
 }

@@ -61,11 +61,13 @@ export function localPending(
   reports: LocalReport[],
   knownReportIds: Set<string>,
   assignmentId: string,
+  // Отчёты, которые сервер не принял: остаются на телефоне, но объём не резервируют.
+  refused: Set<string> = new Set(),
 ): { work: number; assignment: number } {
   let work = 0;
   let assignment = 0;
   for (const r of reports) {
-    if (r.status !== 'PENDING' || knownReportIds.has(r.id)) continue;
+    if (r.status !== 'PENDING' || knownReportIds.has(r.id) || refused.has(r.id)) continue;
     work += r.reportedQuantity;
     if (r.assignmentId === assignmentId) assignment += r.reportedQuantity;
   }

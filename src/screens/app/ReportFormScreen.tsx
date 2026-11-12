@@ -42,6 +42,7 @@ import { useAssignmentTexts } from '@/hooks/useAssignmentTexts';
 import { localizedValue } from '@/lib/assignment-texts';
 import LanguageSelector from '@/components/LanguageSelector';
 import { deliveryMessage } from '@/i18n/delivery';
+import { pendingAddendumFor } from '@/lib/addendum-block';
 
 const HISTORY_STATUS: Record<VolumeHistoryEntry['status'], { label: TranslationKey; color: string; bg: string }> = {
   pending_approval: { label: 'history.pending', color: S.warning, bg: S.warningSoft },
@@ -188,8 +189,13 @@ export default function ReportFormScreen({ route }: Props) {
     };
   }, []);
 
+  // ДС на согласовании по этой работе: объём сервер не примет — говорим сразу, а не после отправки.
+  const [addendum, setAddendum] = useState<{ number: number; contractNumber: string | null } | null>(null);
+  useEffect(() => { let alive = true; pendingAddendumFor(assignmentId).then(a => { if (alive) setAddendum(a); }); return () => { alive = false; }; }, [assignmentId]);
+
   const handleSubmit = async () => {
     if (savingRef.current) return;
+    if (addendum) { reportNotify('report.addendumTitle', 'report.addendumBlocked', { number: addendum.number }); return; }
     const qty = workQty;
     if (!Number.isFinite(qty) || qty <= 0) {
       reportNotify('common.error', 'report.invalidQuantity');
@@ -348,6 +354,12 @@ export default function ReportFormScreen({ route }: Props) {
           </View>
 
           {translationsUnavailable && <Text style={styles.hint}>{t('catalogue.unavailable')}</Text>}
+          {addendum && (
+            <View style={styles.errorBanner} accessibilityLiveRegion="polite">
+              <Icon name="file-document-edit-outline" size={18} color={S.danger} />
+              <Text style={styles.errorText}>{t('report.addendumBlocked', { number: addendum.number })}</Text>
+            </View>
+          )}
           {planError && (
             <View style={styles.errorBanner}>
               <Icon name="alert-circle-outline" size={18} color={S.danger} />

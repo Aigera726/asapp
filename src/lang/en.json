@@ -751,5 +751,18 @@
   "notice.reportRejectedBody": "{work}: {reported} {unit}. Reason: {reason}",
   "notice.modalChanges": "Work volumes changed",
   "notice.modalFooter": "The volume available to submit has been recalculated for the new volumes.",
-  "notice.modalOk": "Got it"
+  "notice.modalOk": "Got it",
+  "delivery.refusedTitle": "Reports not accepted by the server: {count}",
+  "delivery.refusedHint": "These reports stay on the phone but no longer reduce the available volume. Delete the report or enter it again with correct data.",
+  "delivery.overLimit": "The volume is more than what is left for the work. Enter the report again with a smaller volume.",
+  "delivery.refusedWrite": "The server did not accept the report.",
+  "delivery.serverAnswer": "Server response: {text}",
+  "delivery.delete": "Delete report",
+  "delivery.redo": "Enter again",
+  "delivery.deleteConfirm": "Delete this report from the phone? The server did not accept it, and it cannot be restored.",
+  "delivery.deleted": "The report was deleted from the phone.",
+  "delivery.unknownWork": "Work",
+  "report.addendumTitle": "Addendum",
+  "report.addendumBlocked": "Addendum No. {number} is being processed for this work, so the volume is not accepted yet. You can enter the volume once the addendum is approved or rejected.",
+  "work.addendumPending": "Addendum No. {number} pending approval"
 }

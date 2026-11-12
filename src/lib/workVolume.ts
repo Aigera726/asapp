@@ -6,6 +6,7 @@ import Report from '@/database/models/Report';
 import WorkReport from '@/database/models/WorkReport';
 import { localPending, summarizeVolume, VolumeSummary } from '@/database/workVolume';
 import { supabase } from '@/lib/supabase';
+import { refusedReportIds } from '@/store/syncStore';
 
 /** Строка истории: отправка из ERP или свой отчёт, который сервер ещё не показал. */
 export type VolumeHistoryEntry = {
@@ -41,12 +42,13 @@ export async function loadWorkVolumes(assignments: WorkAssignment[]): Promise<Ma
   const workOf = new Map(siblings.map((s) => [s.id, s.estimateWorkId]));
   const plans = new Map(works.map((w) => [w.id, w.totalQuantity]));
   const knownIds = new Set(history.map((h) => h.mobileReportId).filter(Boolean) as string[]);
+  const refused = refusedReportIds();
 
   for (const a of assignments) {
     const workId = a.estimateWorkId;
     if (!workId || !plans.has(workId)) continue;
     const workReports = reports.filter((r) => workOf.get(r.assignmentId) === workId);
-    const local = localPending(workReports, knownIds, a.id);
+    const local = localPending(workReports, knownIds, a.id, refused);
     const summary = summarizeVolume({
       plan: plans.get(workId) ?? 0,
       workConfirmed: a.workConfirmedVolume,
@@ -138,7 +140,7 @@ export async function loadLiveWorkVolume(assignmentId: string): Promise<WorkVolu
     const reports = await database.get<Report>('reports')
       .query(Q.where('assignment_id', Q.oneOf([...new Set([assignmentId, ...siblings.map((x) => x.id)])]))).fetch();
     const knownIds = new Set((facts ?? []).map((f: any) => f.mobile_report_id).filter(Boolean) as string[]);
-    const local = localPending(reports, knownIds, assignmentId);
+    const local = localPending(reports, knownIds, assignmentId, refusedReportIds());
     const limit = Number(row.assigned_quantity ?? row.total_quantity ?? 0);
 
     const summary = summarizeVolume({

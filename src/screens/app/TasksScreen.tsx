@@ -31,6 +31,7 @@ import { syncDatabase } from '@/database/sync';
 import { useAuthStore } from '@/store/authStore';
 import { VolumeBar } from '@/components/VolumeBar';
 import { loadWorkVolumes } from '@/lib/workVolume';
+import { pendingAddendaByAssignment } from '@/lib/addendum-block';
 import { VolumeSummary } from '@/database/workVolume';
 import { useTranslation } from '@/i18n';
 import type { TranslationKey } from '@/i18n/messages';
@@ -42,6 +43,8 @@ type TasksScreenRouteProp = RouteProp<TabParamList, 'Tasks'>;
 
 interface WorkAssignmentWithName {
   id: string;
+  /** Номер ДС на согласовании, который меняет объём работы (объём пока не принимается). */
+  addendum?: number | null;
   contract_id: string;
   estimate_work_id: string | null;
   wbs_item_id: string | null;
@@ -267,7 +270,7 @@ function TasksScreen({ route }: Props) {
       const resourcesMap = new Map(resources.map(r => [r.id, r]));
       const contractsMap = new Map(contractsData.map(c => [c.id, c]));
       const contractorsMap = new Map(contractors.map(c => [c.id, c]));
-      const volumes = await loadWorkVolumes(rawAssignments);
+      const [volumes, addenda] = await Promise.all([loadWorkVolumes(rawAssignments), pendingAddendaByAssignment()]);
 
       // Transform
       const mapped: WorkAssignmentWithName[] = rawAssignments.map((wa) => {
@@ -302,6 +305,7 @@ function TasksScreen({ route }: Props) {
           contractor_name: contractor?.companyName || '',
           project_id: contract?.projectId || '',
           volume: volumes.get(wa.id)?.summary ?? null,
+          addendum: addenda.get(wa.id) ?? null,
         };
       });
 
@@ -397,6 +401,9 @@ function TasksScreen({ route }: Props) {
           <View style={[styles.pill, { backgroundColor: S.surface2 }]}>
             <Text style={[styles.pillText, { color: E.muted }]}>{t(item.position_type)}</Text>
           </View>
+          {item.addendum != null && <View style={[styles.pill, { backgroundColor: S.warningSoft }]}>
+            <Text style={[styles.pillText, { color: S.warning }]}>{t('work.addendumPending', { number: item.addendum })}</Text>
+          </View>}
         </View>
 
         {item.volume ? (

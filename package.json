@@ -10,6 +10,7 @@
     "test:durable-queue": "node scripts/test-durable-queue.cjs",
     "test:sync-delivery": "node scripts/test-sync-delivery.cjs",
     "test:notices": "node scripts/test-notices.cjs",
+    "test:report-refusals": "node scripts/test-report-refusals.cjs",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",

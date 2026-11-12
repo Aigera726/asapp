@@ -45,5 +45,7 @@ const reports = [
   { id: 'done', assignmentId: 'a', reportedQuantity: 7, status: 'APPROVED' },
 ];
 assert.deepEqual({ ...localPending(reports, new Set(['sent']), 'a') }, { work: 15, assignment: 10 });
+// Отчёт, который сервер не принял, остаётся на телефоне, но объём не резервирует.
+assert.deepEqual({ ...localPending(reports, new Set(['sent']), 'a', new Set(['offline'])) }, { work: 5, assignment: 0 });
 
 console.log('PASS: 245−200=45, 120 из 200 → 125, отказ → 245, офлайн, предел договора');

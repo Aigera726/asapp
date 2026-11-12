@@ -473,10 +473,10 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
     pushChanges: async ({ changes }) => {
       const client = supabase.schema(MOBILE_SCHEMA);
       const rejected: Record<string, string[]> = {};
-      const reject = (table: string, id: string, code: DeliveryIssue['code'], detail?: string) => {
+      const reject = (table: string, id: string, code: DeliveryIssue['code'], detail?: string, serverCode?: string) => {
         // ERP не принимает объём, пока по работе идёт доп. соглашение на согласовании: своя понятная причина.
-        if (code === 'write' && /доп\. соглашени/i.test(detail || '')) code = 'addendum';
-        (rejected[table] ||= []).push(id); issues.push({ table, id, code, detail });
+        if (code === 'write' && /соглашени|addendum/i.test(detail || '')) code = 'addendum';
+        (rejected[table] ||= []).push(id); issues.push({ table, id, code, detail, serverCode: serverCode || undefined });
       };
       for (const table of PUSH_ORDER) {
         const raw = (changes as any)[table];
@@ -551,7 +551,7 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
               const { error } = await client.from(table).upsert(record);
               if (error) throw error;
               receipts.push({ table, id: record.id, fingerprint: deliveryFingerprint(originals.get(record.id)) });
-            } catch (error: any) { reject(table, record.id, 'write', error.message); }
+            } catch (error: any) { reject(table, record.id, 'write', error.message, error.code); }
           }
           continue;
         }
@@ -570,6 +570,8 @@ async function runSync(_forceFullSync: boolean): Promise<void> {
   });
 
   await markPushedRecordsAsSynced(receipts);
+  // Принятый отчёт больше не числится отклонённым.
+  useSyncStore.getState().forgetRefusals?.(receipts.filter(r => r.table === 'reports').map(r => r.id));
   useSyncStore.getState().setIssues(issues);
   if (issues.length) throw new DeliveryError(issues);
 }

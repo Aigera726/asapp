@@ -751,5 +751,18 @@
   "notice.reportRejectedBody": "{work}: {reported} {unit}. Səbəb: {reason}",
   "notice.modalChanges": "İşlərin həcmləri dəyişdi",
   "notice.modalFooter": "Göndərilə bilən həcm artıq yeni həcmlərə görə yenidən hesablanıb.",
-  "notice.modalOk": "Aydındır"
+  "notice.modalOk": "Aydındır",
+  "delivery.refusedTitle": "Serverin qəbul etmədiyi hesabatlar: {count}",
+  "delivery.refusedHint": "Bu hesabatlar telefonda qalır, lakin artıq mövcud həcmi azaltmır. Hesabatı silin və ya düzgün məlumatlarla yenidən daxil edin.",
+  "delivery.overLimit": "Həcm iş üzrə qalandan çoxdur. Hesabatı daha kiçik həcmlə yenidən daxil edin.",
+  "delivery.refusedWrite": "Server hesabatı qəbul etmədi.",
+  "delivery.serverAnswer": "Serverin cavabı: {text}",
+  "delivery.delete": "Hesabatı silmək",
+  "delivery.redo": "Yenidən daxil etmək",
+  "delivery.deleteConfirm": "Bu hesabat telefondan silinsin? Server onu qəbul etmədi, onu bərpa etmək mümkün olmayacaq.",
+  "delivery.deleted": "Hesabat telefondan silindi.",
+  "delivery.unknownWork": "İş",
+  "report.addendumTitle": "Əlavə razılaşma",
+  "report.addendumBlocked": "İş üzrə № {number} əlavə razılaşma rəsmiləşdirilir — həcm hələ qəbul edilmir. Həcmi əlavə razılaşma təsdiqləndikdən və ya rədd edildikdən sonra daxil etmək olar.",
+  "work.addendumPending": "№ {number} əlavə razılaşma təsdiqdədir"
 }

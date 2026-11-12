@@ -1,7 +1,7 @@
 import { useTranslation } from '@/i18n';
 
 import { LOCALES } from '@/i18n/work';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,18 @@ import { getStatusLabel } from '@/lib/statusLabels';
 import { useSyncStore } from '@/store/syncStore';
 import { deliveryMessage } from '@/i18n/delivery';
 import { notify } from '@/lib/alert';
+import WorkAssignment from '@/database/models/WorkAssignment';
+import EstimateWork from '@/database/models/EstimateWork';
+import { useAssignmentTexts } from '@/hooks/useAssignmentTexts';
+import { localizedValue } from '@/lib/assignment-texts';
+import { displayQty, unitLabel } from '@/i18n/work';
+import type { RefusalCode } from '@/lib/report-refusals';
+import type { TranslationKey } from '@/i18n/messages';
+
+const REFUSAL_TEXT: Record<RefusalCode, TranslationKey> = {
+  overLimit: 'delivery.overLimit', addendum: 'delivery.addendum', assignment: 'delivery.assignment', write: 'delivery.refusedWrite',
+};
+type WorkLabel = { name: string; unit: string | null };
 
 // Fix 1.4: _status is a WatermelonDB internal meta-field that cannot be used
 // with Q.where(). Fetch all purchase_requests reactively and filter in JS.
@@ -51,6 +63,55 @@ interface Props {
 function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props) {
   const { language, t } = useTranslation();
   const issues = useSyncStore(state => state.issues);
+  const refusals = useSyncStore(state => state.refusals);
+  // Название и единица работы отчёта — вместо технического номера.
+  const [works, setWorks] = useState<Record<string, WorkLabel>>({});
+  const assignmentIds = [...new Set(pendingReports.map(r => r.assignmentId))];
+  const { texts } = useAssignmentTexts(assignmentIds);
+  const pendingKey = pendingReports.map(r => r.id).join(',');
+  useEffect(() => {
+    // Отказ хранится, пока отчёт на телефоне; принятые и удалённые отчёты забываются.
+    useSyncStore.getState().keepRefusals(pendingReports.map(r => r.id));
+    let alive = true;
+    (async () => {
+      const ids = [...new Set(pendingReports.map(r => r.assignmentId))];
+      if (!ids.length) { if (alive) setWorks({}); return; }
+      const assignments = await database.get<WorkAssignment>('work_assignments').query(Q.where('id', Q.oneOf(ids))).fetch().catch(() => [] as WorkAssignment[]);
+      const workIds = assignments.map(a => a.estimateWorkId).filter(Boolean) as string[];
+      const estimate = workIds.length ? await database.get<EstimateWork>('estimate_works').query(Q.where('id', Q.oneOf(workIds))).fetch().catch(() => [] as EstimateWork[]) : [];
+      const byWork = new Map(estimate.map(w => [w.id, w]));
+      const out: Record<string, WorkLabel> = {};
+      for (const a of assignments) { const w = a.estimateWorkId ? byWork.get(a.estimateWorkId) : undefined; out[a.id] = { name: w?.name || '', unit: w?.unit || null }; }
+      if (alive) setWorks(out);
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingKey]);
+  const workName = (assignmentId: string) => localizedValue(texts.works[assignmentId]?.names, language, works[assignmentId]?.name || t('delivery.unknownWork'));
+  const workUnit = (assignmentId: string) => unitLabel(localizedValue(texts.works[assignmentId]?.units, language, works[assignmentId]?.unit || ''), language);
+  const reportName = (id: string) => { const r = pendingReports.find(x => x.id === id); return r ? workName(r.assignmentId) : id.slice(0, 8); };
+  const refused = pendingReports.filter(r => refusals[r.id]);
+
+  // Удалить отклонённый отчёт с телефона (на сервер он не попал); «Внести заново» — сразу открыть форму этой работы.
+  const removeReport = async (report: Report, redo: boolean) => {
+    const run = async () => {
+      try {
+        await database.write(async () => {
+          const record = await database.get<Report>('reports').find(report.id);
+          if ((record._raw as any)._status === 'created') await record.destroyPermanently();
+          else await record.markAsDeleted();
+        });
+        useSyncStore.getState().forgetRefusals([report.id]);
+        if (redo) navigation.navigate('ReportForm', { assignmentId: report.assignmentId, workName: workName(report.assignmentId), unit: works[report.assignmentId]?.unit || undefined });
+        else notify(t('delivery.delete'), t('delivery.deleted'));
+      } catch (err: any) {
+        notify(t('common.error'), err?.message || t('ui.please_try_again'));
+      }
+    };
+    const title = redo ? t('delivery.redo') : t('delivery.delete'), message = t('delivery.deleteConfirm');
+    if (Platform.OS === 'web') { if (window.confirm(`${title}\n\n${message}`)) await run(); }
+    else Alert.alert(title, message, [{ text: t('common.cancel'), style: 'cancel' }, { text: title, style: 'destructive', onPress: run }]);
+  };
   const syncLabel = (status: string) => status === 'pending_sync' ? t('history.local')
     : status === 'draft' ? t('ui.draft') : status === 'synced' ? t('ui.synchronized') : status;
   const navigation = useNavigation<any>();
@@ -130,8 +191,8 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
     <View style={styles.reportRow} key={item.id}>
       <View style={styles.reportDot} />
       <View style={styles.reportInfo}>
-        <Text style={styles.reportId}>{t("ui.report")}{item.id.slice(0, 8)}</Text>
-        <Text style={styles.reportQty}>{item.reportedQuantity}{' '}{t("ui.units")}{' '}{getStatusLabel(item.status, language)}</Text>
+        <Text style={styles.reportId} numberOfLines={2}>{workName(item.assignmentId)}</Text>
+        <Text style={styles.reportQty}>{displayQty(item.reportedQuantity, language)}{' '}{workUnit(item.assignmentId) || t("ui.units")}{' · '}{refusals[item.id] ? t('delivery.refusedWrite') : getStatusLabel(item.status, language)}</Text>
       </View>
       <View style={[
         styles.syncBadge,
@@ -169,9 +230,30 @@ function SyncStatusScreen({ pendingReports, syncedReports, allRequests }: Props)
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {issues.length > 0 && <View accessibilityLiveRegion="polite" style={{ padding: 16, marginBottom: 16, backgroundColor: T.colors.warningSoft, borderRadius: 12 }}>
           <Text style={{ color: T.colors.textPrimary, fontWeight: '700' }}>{t('delivery.remaining', { count: issues.length })}</Text>
-          {issues.map(issue => <Text key={`${issue.table}:${issue.id}`} style={{ marginTop: 8, color: T.colors.textPrimary }}>
-            {issue.id.slice(0, 8)} · {t(`delivery.${issue.code}`)}
+          {issues.filter(issue => !refusals[issue.id]).map(issue => <Text key={`${issue.table}:${issue.id}`} style={{ marginTop: 8, color: T.colors.textPrimary }}>
+            {issue.table === 'reports' ? reportName(issue.id) : issue.id.slice(0, 8)} · {t(`delivery.${issue.code}`)}
           </Text>)}
+        </View>}
+
+        {refused.length > 0 && <View accessibilityLiveRegion="polite" style={styles.refusedBox}>
+          <Text style={styles.refusedTitle}>{t('delivery.refusedTitle', { count: refused.length })}</Text>
+          <Text style={styles.refusedHint}>{t('delivery.refusedHint')}</Text>
+          {refused.map(report => { const refusal = refusals[report.id];
+            return <View key={report.id} style={styles.refusedItem}>
+              <Text style={styles.reportId} numberOfLines={3}>{workName(report.assignmentId)}</Text>
+              <Text style={styles.reportQty}>{displayQty(report.reportedQuantity, language)} {workUnit(report.assignmentId)}
+                {report.createdAt ? ` · ${report.createdAt.toLocaleDateString(LOCALES[language])}` : ''}</Text>
+              <Text style={styles.refusedReason}>{t(REFUSAL_TEXT[refusal.code])}</Text>
+              {!!refusal.detail && refusal.code !== 'addendum' && <Text style={styles.reportQty}>{t('delivery.serverAnswer', { text: refusal.detail })}</Text>}
+              <View style={styles.refusedActions}>
+                <TouchableOpacity accessibilityRole="button" style={styles.refusedBtn} disabled={isSyncing} onPress={() => removeReport(report, true)}>
+                  <Text style={styles.refusedBtnText}>{t('delivery.redo')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" style={[styles.refusedBtn, styles.refusedBtnDanger]} disabled={isSyncing} onPress={() => removeReport(report, false)}>
+                  <Text style={[styles.refusedBtnText, { color: T.colors.danger }]}>{t('delivery.delete')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>; })}
         </View>}
 
         {/* Статистика */}
@@ -410,6 +492,15 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     fontWeight: '600',
   },
+  refusedBox: { padding: 16, marginBottom: 16, backgroundColor: T.colors.surface, borderRadius: 12, borderWidth: 1, borderColor: T.colors.danger },
+  refusedTitle: { color: T.colors.danger, fontWeight: '700', fontSize: 15 },
+  refusedHint: { color: T.colors.textSecondary, fontSize: 13, marginTop: 4, lineHeight: 19 },
+  refusedItem: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: T.colors.border },
+  refusedReason: { color: T.colors.textPrimary, fontSize: 13, marginTop: 6, lineHeight: 19 },
+  refusedActions: { flexDirection: 'row', gap: 10, marginTop: 10, flexWrap: 'wrap' },
+  refusedBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: T.colors.primary },
+  refusedBtnDanger: { borderColor: T.colors.danger },
+  refusedBtnText: { color: T.colors.primary, fontWeight: '700', fontSize: 14 },
   infoCard: {
     backgroundColor: T.colors.surface,
     borderRadius: 16,
