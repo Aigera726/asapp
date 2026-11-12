@@ -764,5 +764,8 @@
   "delivery.unknownWork": "სამუშაო",
   "report.addendumTitle": "დამატებითი შეთანხმება",
   "report.addendumBlocked": "სამუშაოზე ფორმდება დამატებითი შეთანხმება № {number} — მოცულობა ჯერ არ მიიღება. მოცულობის შეყვანა შესაძლებელი იქნება შეთანხმების დამტკიცების ან უარყოფის შემდეგ.",
-  "work.addendumPending": "დამატებითი შეთანხმება № {number} შეთანხმების პროცესშია"
+  "work.addendumPending": "დამატებითი შეთანხმება № {number} შეთანხმების პროცესშია",
+  "work.contractAmount": "თანხა: {amount}",
+  "work.contractPeriod": "ვადა: {from} – {to}",
+  "work.contractWorks": "სამუშაოები: {count}"
 }

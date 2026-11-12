@@ -764,5 +764,8 @@
   "delivery.unknownWork": "Работа",
   "report.addendumTitle": "Доп. соглашение",
   "report.addendumBlocked": "По работе оформляется доп. соглашение № {number} — объём пока не принимается. Внести объём можно после того, как ДС согласуют или отклонят.",
-  "work.addendumPending": "ДС № {number} на согласовании"
+  "work.addendumPending": "ДС № {number} на согласовании",
+  "work.contractAmount": "Сумма: {amount}",
+  "work.contractPeriod": "Срок: {from} – {to}",
+  "work.contractWorks": "Работ: {count}"
 }

@@ -764,5 +764,8 @@
   "delivery.unknownWork": "İş",
   "report.addendumTitle": "Əlavə razılaşma",
   "report.addendumBlocked": "İş üzrə № {number} əlavə razılaşma rəsmiləşdirilir — həcm hələ qəbul edilmir. Həcmi əlavə razılaşma təsdiqləndikdən və ya rədd edildikdən sonra daxil etmək olar.",
-  "work.addendumPending": "№ {number} əlavə razılaşma təsdiqdədir"
+  "work.addendumPending": "№ {number} əlavə razılaşma təsdiqdədir",
+  "work.contractAmount": "Məbləğ: {amount}",
+  "work.contractPeriod": "Müddət: {from} – {to}",
+  "work.contractWorks": "İşlər: {count}"
 }

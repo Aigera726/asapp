@@ -32,10 +32,11 @@ import { useAuthStore } from '@/store/authStore';
 import { VolumeBar } from '@/components/VolumeBar';
 import { loadWorkVolumes } from '@/lib/workVolume';
 import { pendingAddendaByAssignment } from '@/lib/addendum-block';
+import { contractRows, type ContractHead } from '@/lib/contract-rows';
 import { VolumeSummary } from '@/database/workVolume';
 import { useTranslation } from '@/i18n';
 import type { TranslationKey } from '@/i18n/messages';
-import { displayQty, unitLabel, demoName } from '@/i18n/work';
+import { displayQty, unitLabel, demoName, LOCALES } from '@/i18n/work';
 import { useAssignmentTexts } from '@/hooks/useAssignmentTexts';
 import { localizedValue } from '@/lib/assignment-texts';
 
@@ -43,6 +44,10 @@ type TasksScreenRouteProp = RouteProp<TabParamList, 'Tasks'>;
 
 interface WorkAssignmentWithName {
   id: string;
+  contract_amount?: number | null;
+  contract_currency?: string | null;
+  contract_start?: string | null;
+  contract_end?: string | null;
   /** Номер ДС на согласовании, который меняет объём работы (объём пока не принимается). */
   addendum?: number | null;
   contract_id: string;
@@ -102,6 +107,7 @@ function TasksScreen({ route }: Props) {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(initialProjectId || null);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+  const [collapsedContracts, setCollapsedContracts] = useState<Set<string>>(() => new Set());
 
   // 1. Load Filter Options
   useEffect(() => {
@@ -303,6 +309,10 @@ function TasksScreen({ route }: Props) {
           position_type: positionType,
           contract_number: contract?.contractNumber || '',
           contractor_name: contractor?.companyName || '',
+          contract_amount: contract?.amount ?? null,
+          contract_currency: contract?.currency ?? null,
+          contract_start: contract?.dateStart ?? null,
+          contract_end: contract?.dateEnd ?? null,
           project_id: contract?.projectId || '',
           volume: volumes.get(wa.id)?.summary ?? null,
           addendum: addenda.get(wa.id) ?? null,
@@ -449,8 +459,29 @@ function TasksScreen({ route }: Props) {
   const visible = query
     ? assignments.filter(a => workText(a).toLocaleLowerCase().includes(query)
       || a.work_name.toLocaleLowerCase().includes(query)
-      || a.contract_number.toLocaleLowerCase().includes(query))
+      || a.contract_number.toLocaleLowerCase().includes(query)
+      || a.contractor_name.toLocaleLowerCase().includes(query))
     : assignments;
+  // При поиске договоры раскрыты: найденная работа не прячется в свёрнутом договоре.
+  const rows = contractRows(visible, query ? new Set<string>() : collapsedContracts);
+  const toggleContract = (id: string) => setCollapsedContracts(old => { const next = new Set(old); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const fmtDate = (value: string | null) => value ? new Date(`${value}T00:00:00Z`).toLocaleDateString(LOCALES[language], { timeZone: 'UTC' }) : '—';
+  const fmtMoney = (value: number) => value.toLocaleString(LOCALES[language], { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const renderContractHead = (item: ContractHead) => (
+    <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: !item.collapsed }} activeOpacity={0.8}
+      accessibilityLabel={t('work.contractNumber', { number: item.number || '—' })} style={styles.contractHead} onPress={() => toggleContract(item.contract_id)}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.contractTitle} numberOfLines={1}>{t('work.contractNumber', { number: item.number || '—' })}</Text>
+        <Text style={styles.contractMeta} numberOfLines={1}>{item.contractor || t('work.unknownContractor')}</Text>
+        <Text style={styles.contractMeta}>
+          {item.amount != null ? t('work.contractAmount', { amount: `${fmtMoney(item.amount)}${item.currency ? ` ${item.currency}` : ''}` }) + ' · ' : ''}
+          {item.start || item.end ? t('work.contractPeriod', { from: fmtDate(item.start), to: fmtDate(item.end) }) + ' · ' : ''}
+          {t('work.contractWorks', { count: item.count })}
+        </Text>
+      </View>
+      <Icon name={item.collapsed ? 'chevron-down' : 'chevron-up'} size={22} color={E.blue} />
+    </TouchableOpacity>
+  );
 
   const header = (
     <>
@@ -494,9 +525,9 @@ function TasksScreen({ route }: Props) {
       ) : (
         <FlatList
           id="assignments-list"
-          data={visible}
+          data={rows}
           keyExtractor={(item) => item.id}
-          renderItem={renderTaskCard}
+          renderItem={({ item }) => (item as ContractHead).kind === 'contract' ? renderContractHead(item as ContractHead) : renderTaskCard({ item: item as WorkAssignmentWithName })}
           ListHeaderComponent={header}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
@@ -518,6 +549,10 @@ function TasksScreen({ route }: Props) {
 export default TasksScreen;
 
 const styles = StyleSheet.create({
+  contractHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 6, marginBottom: 8,
+    borderRadius: 14, backgroundColor: E.soft, borderWidth: 1, borderColor: E.line },
+  contractTitle: { fontSize: 15, fontWeight: '800', color: E.ink },
+  contractMeta: { fontSize: 12, color: E.muted, marginTop: 2 },
   container: { flex: 1, backgroundColor: E.paper },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 12, color: E.muted, fontSize: 13 },

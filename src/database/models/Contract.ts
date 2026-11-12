@@ -18,5 +18,11 @@ export default class Contract extends Model {
   @field('contractor_id') contractorId: string | null;
   @field('contract_number') contractNumber: string | null;
   @field('ext_id') extId: string | null;
+  /** Сумма договора с изменениями согласованных ДС; null — ERP ещё без миграции 18. */
+  @field('amount') amount: number | null;
+  /** Символ (или код) валюты договора. */
+  @field('currency') currency: string | null;
+  @field('date_start') dateStart: string | null;
+  @field('date_end') dateEnd: string | null;
   @readonly @date('updated_at') updatedAt: Date;
 }

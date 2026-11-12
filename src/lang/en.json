@@ -764,5 +764,8 @@
   "delivery.unknownWork": "Work",
   "report.addendumTitle": "Addendum",
   "report.addendumBlocked": "Addendum No. {number} is being processed for this work, so the volume is not accepted yet. You can enter the volume once the addendum is approved or rejected.",
-  "work.addendumPending": "Addendum No. {number} pending approval"
+  "work.addendumPending": "Addendum No. {number} pending approval",
+  "work.contractAmount": "Amount: {amount}",
+  "work.contractPeriod": "Term: {from} – {to}",
+  "work.contractWorks": "Works: {count}"
 }

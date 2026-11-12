@@ -1,7 +1,7 @@
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const schema = appSchema({
-  version: 14,
+  version: 15,
   tables: [
     // ... (existing tables)
     tableSchema({
@@ -77,6 +77,11 @@ export const schema = appSchema({
         { name: 'contractor_id', type: 'string', isOptional: true },
         { name: 'contract_number', type: 'string', isOptional: true },
         { name: 'ext_id', type: 'string', isOptional: true },
+        // Сумма, валюта и сроки договора (mobile.v_assignments, миграция 18).
+        { name: 'amount', type: 'number', isOptional: true },
+        { name: 'currency', type: 'string', isOptional: true },
+        { name: 'date_start', type: 'string', isOptional: true },
+        { name: 'date_end', type: 'string', isOptional: true },
         { name: 'updated_at', type: 'number' },
       ],
     }),

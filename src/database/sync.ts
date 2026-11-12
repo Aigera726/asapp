@@ -103,6 +103,11 @@ const FAN_OUTS: FanOut[] = [
               contractor_id: r.contractor_id ?? null,
               contract_number: r.contract_number ?? r.contract_name ?? null,
               ext_id: null,
+              // Миграция 18: без неё колонок нет — заголовок договора без суммы и сроков.
+              amount: numOrNull(r.contract_amount),
+              currency: r.contract_currency_symbol ?? r.contract_currency ?? null,
+              date_start: r.contract_date_start ? String(r.contract_date_start).slice(0, 10) : null,
+              date_end: r.contract_date_end ? String(r.contract_date_end).slice(0, 10) : null,
               updated_at: now(),
             },
           ]

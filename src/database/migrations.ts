@@ -3,6 +3,18 @@ import { schemaMigrations, createTable, addColumns } from '@nozbe/watermelondb/S
 export const migrations = schemaMigrations({
   migrations: [
     {
+      // Договор на вкладке «Работы»: сумма, валюта и сроки (mobile.v_assignments, миграция 18).
+      toVersion: 15,
+      steps: [
+        addColumns({ table: 'contracts', columns: [
+          { name: 'amount', type: 'number', isOptional: true },
+          { name: 'currency', type: 'string', isOptional: true },
+          { name: 'date_start', type: 'string', isOptional: true },
+          { name: 'date_end', type: 'string', isOptional: true },
+        ] }),
+      ],
+    },
+    {
       // Доп. соглашения к договорам: уведомления и окно «ДС согласовано».
       toVersion: 14,
       steps: [
