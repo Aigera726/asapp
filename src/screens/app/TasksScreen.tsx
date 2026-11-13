@@ -32,7 +32,6 @@ import { useAuthStore } from '@/store/authStore';
 import { VolumeBar } from '@/components/VolumeBar';
 import { loadWorkVolumes } from '@/lib/workVolume';
 import { pendingAddendaByAssignment } from '@/lib/addendum-block';
-import { contractRows, type ContractHead } from '@/lib/contract-rows';
 import { VolumeSummary } from '@/database/workVolume';
 import { useTranslation } from '@/i18n';
 import type { TranslationKey } from '@/i18n/messages';
@@ -107,7 +106,6 @@ function TasksScreen({ route }: Props) {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(initialProjectId || null);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
-  const [collapsedContracts, setCollapsedContracts] = useState<Set<string>>(() => new Set());
 
   // 1. Load Filter Options
   useEffect(() => {
@@ -397,8 +395,9 @@ function TasksScreen({ route }: Props) {
           </View>
           <View style={styles.taskBody}>
             <Text style={styles.taskName} numberOfLines={3}>{workText(item)}</Text>
+            {/* Подрядчик видит только свои договоры: его название — только если в списке работы разных подрядчиков. */}
             <Text style={styles.contractorText} numberOfLines={1}>
-              {item.contractor_name || t('work.unknownContractor')} · {t('work.contractNumber', { number: item.contract_number || '—' })}
+              {manyContractors ? `${item.contractor_name || t('work.unknownContractor')} · ` : ''}{t('work.contractNumber', { number: item.contract_number || '—' })}
             </Text>
           </View>
         </View>
@@ -437,7 +436,6 @@ function TasksScreen({ route }: Props) {
         )}
 
         <View style={styles.taskFooter}>
-          <Text style={styles.taskId}>#{item.id.slice(0, 8)}</Text>
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel={t('work.enterLabel', { name: workText(item) })}
@@ -462,26 +460,11 @@ function TasksScreen({ route }: Props) {
       || a.contract_number.toLocaleLowerCase().includes(query)
       || a.contractor_name.toLocaleLowerCase().includes(query))
     : assignments;
-  // При поиске договоры раскрыты: найденная работа не прячется в свёрнутом договоре.
-  const rows = contractRows(visible, query ? new Set<string>() : collapsedContracts);
-  const toggleContract = (id: string) => setCollapsedContracts(old => { const next = new Set(old); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  // Сумма и срок — у договора, выбранного в фильтре «Договор» (или у единственного договора в списке).
+  const chosenContract = selectedContractId ? contracts.find(c => c.id === selectedContractId) || null : contracts.length === 1 ? contracts[0] : null;
+  const manyContractors = new Set(assignments.map(a => a.contractor_name)).size > 1;
   const fmtDate = (value: string | null) => value ? new Date(`${value}T00:00:00Z`).toLocaleDateString(LOCALES[language], { timeZone: 'UTC' }) : '—';
   const fmtMoney = (value: number) => value.toLocaleString(LOCALES[language], { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  const renderContractHead = (item: ContractHead) => (
-    <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: !item.collapsed }} activeOpacity={0.8}
-      accessibilityLabel={t('work.contractNumber', { number: item.number || '—' })} style={styles.contractHead} onPress={() => toggleContract(item.contract_id)}>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.contractTitle} numberOfLines={1}>{t('work.contractNumber', { number: item.number || '—' })}</Text>
-        <Text style={styles.contractMeta} numberOfLines={1}>{item.contractor || t('work.unknownContractor')}</Text>
-        <Text style={styles.contractMeta}>
-          {item.amount != null ? t('work.contractAmount', { amount: `${fmtMoney(item.amount)}${item.currency ? ` ${item.currency}` : ''}` }) + ' · ' : ''}
-          {item.start || item.end ? t('work.contractPeriod', { from: fmtDate(item.start), to: fmtDate(item.end) }) + ' · ' : ''}
-          {t('work.contractWorks', { count: item.count })}
-        </Text>
-      </View>
-      <Icon name={item.collapsed ? 'chevron-down' : 'chevron-up'} size={22} color={E.blue} />
-    </TouchableOpacity>
-  );
 
   const header = (
     <>
@@ -510,6 +493,14 @@ function TasksScreen({ route }: Props) {
         {renderFilterChips(projects, selectedProjectId, setSelectedProjectId, 'name', t('work.object'))}
         {renderFilterChips(contracts, selectedContractId, setSelectedContractId, 'contractNumber', t('work.contract'))}
       </View>
+      {chosenContract && <View style={styles.contractInfo} accessibilityRole="summary">
+        <Text style={styles.contractTitle} numberOfLines={1}>{t('work.contractNumber', { number: chosenContract.contractNumber || '—' })}</Text>
+        <Text style={styles.contractMeta}>
+          {[chosenContract.amount != null ? t('work.contractAmount', { amount: `${fmtMoney(chosenContract.amount)}${chosenContract.currency ? ` ${chosenContract.currency}` : ''}` }) : null,
+            chosenContract.dateStart || chosenContract.dateEnd ? t('work.contractPeriod', { from: fmtDate(chosenContract.dateStart), to: fmtDate(chosenContract.dateEnd) }) : null,
+            t('work.contractWorks', { count: visible.length })].filter(Boolean).join(' · ')}
+        </Text>
+      </View>}
     </>
   );
 
@@ -525,9 +516,9 @@ function TasksScreen({ route }: Props) {
       ) : (
         <FlatList
           id="assignments-list"
-          data={rows}
+          data={visible}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (item as ContractHead).kind === 'contract' ? renderContractHead(item as ContractHead) : renderTaskCard({ item: item as WorkAssignmentWithName })}
+          renderItem={renderTaskCard}
           ListHeaderComponent={header}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
@@ -549,8 +540,7 @@ function TasksScreen({ route }: Props) {
 export default TasksScreen;
 
 const styles = StyleSheet.create({
-  contractHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 6, marginBottom: 8,
-    borderRadius: 14, backgroundColor: E.soft, borderWidth: 1, borderColor: E.line },
+  contractInfo: { paddingVertical: 10, paddingHorizontal: 14, marginBottom: 12, borderRadius: 14, backgroundColor: E.soft, borderWidth: 1, borderColor: E.line },
   contractTitle: { fontSize: 15, fontWeight: '800', color: E.ink },
   contractMeta: { fontSize: 12, color: E.muted, marginTop: 2 },
   container: { flex: 1, backgroundColor: E.paper },
@@ -598,8 +588,7 @@ const styles = StyleSheet.create({
   volumeValue: { fontSize: 25, fontWeight: '500', letterSpacing: -1, color: E.ink, marginTop: 6, marginBottom: 10 },
   volumeUnit: { fontSize: 13, fontWeight: '500', letterSpacing: 0, color: E.muted },
 
-  taskFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: E.line },
-  taskId: { fontSize: 11, color: E.muted },
+  taskFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: E.line },
   reportBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 42, paddingHorizontal: 16, borderRadius: 9, backgroundColor: E.blue },
   reportBtnMuted: { backgroundColor: E.soft },
   reportBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },

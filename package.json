@@ -11,7 +11,6 @@
     "test:sync-delivery": "node scripts/test-sync-delivery.cjs",
     "test:notices": "node scripts/test-notices.cjs",
     "test:report-refusals": "node scripts/test-report-refusals.cjs",
-    "test:contract-rows": "node scripts/test-contract-rows.cjs",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
